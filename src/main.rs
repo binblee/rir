@@ -1,7 +1,14 @@
-mod ircore;
-use ircore::InvertedIndex;
+pub mod ircore;
+use std::path::Path;
+use ircore::search::Engine;
+
 fn main() {
-    let mut index = InvertedIndex::new();
-    index.insert("spam".to_string(), 1);
-    index.all_phrase(&vec!["spam".to_string()]);
+    let mut engine = Engine::new();
+    let res = engine.build_index(&Path::new("./samples"));
+    assert_eq!(res, Ok(5));
+    let docs = engine.search_phase("Quarrel sir");
+    println!("{:?}", docs);
 }
+
+
+
