@@ -20,7 +20,6 @@ impl Engine {
 
     pub fn build_index(&mut self, path: &Path) -> Result<usize, String> {
         if path.is_file(){
-            println!("build index for {}.", path.to_string_lossy());
             if let Ok(content) = fs::read_to_string(path){
                 let normalized_content = normalize(&content);
                 let tokens = parse_tokens(&normalized_content);
@@ -43,10 +42,10 @@ impl Engine {
     pub fn search_phase(&self, phase_str: &str) -> Vec<&String>{
         let phase_normalized = normalize(&phase_str);
         let phase_tokens = parse_tokens(&phase_normalized);
-        let doc_ids = self.index.search_phase(phase_tokens);
+        let hits_list = self.index.search_phase(phase_tokens);
         let mut docs = vec![];
-        for docid in doc_ids {
-            if let Some(docname) = self.doc_info.get(&docid){
+        for hits in hits_list {
+            if let Some(docname) = self.doc_info.get(&hits.docid){
                 docs.push(docname);
             }
         }

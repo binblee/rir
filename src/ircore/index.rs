@@ -74,12 +74,18 @@ pub trait SchemaDependIndex {
     fn prev(&self, doc:DocId, term:TermId, before_position:TermOffset) -> Option<TermOffset>;
     fn next_phrase(&self, doc:DocId, phrase: &Vec<TermId>, position:TermOffset) -> Option<(TermOffset, TermOffset)>;
     fn all_phrase(&self, doc: DocId, phrase: &Vec<TermId>) -> Vec<(TermOffset, TermOffset)>;
-    fn search_phase(&self, phase: Vec<&str>) -> Vec<DocId>;
+    fn search_phase(&self, phase: Vec<&str>) -> Vec<Hits>;
     // helper functions
     fn binary_search(
         positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
         test_fn: fn(u32, u32) -> bool, retval_fn: fn(usize, usize) -> usize) -> usize;
 
+}
+
+#[derive(Debug)]
+pub struct Hits {
+    pub docid: DocId,
+    pub num: usize,
 }
 
 impl SchemaDependIndex for PositionList {
@@ -312,7 +318,7 @@ impl SchemaDependIndex for PositionList {
         result
     }
 
-    fn search_phase(&self, phase: Vec<&str>) -> Vec<DocId> {
+    fn search_phase(&self, phase: Vec<&str>) -> Vec<Hits> {
         let mut phase_ids = Vec::new();
         for word in phase {
             if let Some(id) = self.word_dict.get_id(word){
@@ -323,9 +329,19 @@ impl SchemaDependIndex for PositionList {
         }
         let mut docs = Vec::new();
         if let Some(doc_set) = self.docs_contain_all(&phase_ids){
-            docs = doc_set.into_iter().collect();
+            let docs_contain_all:Vec<DocId> = doc_set.into_iter().collect();
+            for doc in docs_contain_all {
+                let positions = self.all_phrase(doc, &phase_ids);
+                if positions.len() > 0 {
+                    docs.push(Hits{
+                        docid:doc,
+                        num: positions.len()
+                });
+                }
+            }
         }
-        docs.sort(); // ranking for now...
+        use std::cmp::Reverse;
+        docs.sort_by_key(|item| Reverse(item.num)); // ranking for now...
         docs
 
     }
@@ -440,6 +456,6 @@ fn test_search_phase() {
 
     let phase_in_tokens = vec!["你", "好"];
     let docs = idx.search_phase(phase_in_tokens);
-    assert_eq!(docs, vec![1,2]);
+    assert_eq!(docs.len(), 2);
 
 }
