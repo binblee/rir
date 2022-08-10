@@ -1,10 +1,15 @@
 use super::index::{SchemaDependIndex, PositionList, DocId};
 use std::fs;
+use std::fs::File;
 use std::path::Path;
 use std::collections::HashMap;
 use super::tokenizer::{normalize, parse_tokens};
+use serde::{Serialize, Deserialize};
+use bincode;
+use std::io;
+use std::io::{Write, Read};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Engine {
     index: PositionList,
     doc_info: HashMap<DocId, String>,
@@ -18,7 +23,21 @@ impl Engine {
         }
     }
 
-    pub fn build_index(&mut self, path: &Path) -> Result<usize, String> {
+    pub fn doc_count(&self) -> usize {
+        self.doc_info.len()
+    }
+
+    pub fn load_from(path: &Path) -> Self {
+        let mut reader = File::open(path).expect("cannot open idx file.");
+        let mut encoded:Vec<u8> = vec![];
+        if let Ok(_) = reader.read_to_end(&mut encoded){
+            let decoded: Engine = bincode::deserialize(&encoded[..]).unwrap();
+            return decoded;
+        }
+        Self::new()
+    }
+
+    pub fn build_index(&mut self, path: &Path) -> Result<usize, ()> {
         if path.is_file(){
             if let Ok(content) = fs::read_to_string(path){
                 let normalized_content = normalize(&content);
@@ -29,6 +48,7 @@ impl Engine {
                 }
             }
         }else if path.is_dir(){
+            println!("indexing {}...", path.display());
             for entry_result in path.read_dir().expect(&format!("read dir {} failed",path.display())) {
                 if let Ok(entry) = entry_result{
                     let entry_path = entry.path();
@@ -37,6 +57,13 @@ impl Engine {
             }    
         }
         Ok(self.doc_info.len())    
+    }
+
+    pub fn save_to(&mut self, path: &Path) -> io::Result<()> {
+        let encoded: Vec<u8> = bincode::serialize(self).unwrap();
+        let mut writer = File::create(path)?;
+        writer.write_all(&encoded)?;
+        Ok(())
     }
 
     pub fn search_phase(&self, phase_str: &str) -> Vec<&String>{

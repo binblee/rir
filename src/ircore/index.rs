@@ -1,18 +1,19 @@
 
 use std::collections::{HashMap, HashSet};
+use serde::{Serialize, Deserialize};
 
 type TermId = u32;
 pub type DocId = u32;
 type TermOffset = u32;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Posting {
     doc_id: DocId,
     term_frequency: u32,
     positions: Vec<TermOffset>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct WordDic {
     term_ids: HashMap<String, TermId>,
     next_id: TermId,
@@ -41,7 +42,7 @@ impl WordDic {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PositionList {
     // term string -> int(id)
     word_dict: WordDic,
