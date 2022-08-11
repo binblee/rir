@@ -2,7 +2,7 @@ pub mod ircore;
 use std::path::Path;
 use ircore::search::Engine;
 use clap::{Parser, Subcommand};
-use std::io;
+use std::io::{self, BufRead};
 
 #[derive(Parser)]
 #[derive(Debug)]
@@ -26,11 +26,11 @@ enum Commands {
         /// Corpus directory
         corpus_dir: String,
     },
-    /// Phase search
-    SearchPhase {
+    /// Phrase search
+    SearchPhrase {
         #[clap(value_parser)]
-        /// search phase
-        phase: String,
+        /// search phrase
+        phrase: Option<String>,
     }
 }
 
@@ -45,8 +45,10 @@ fn main() {
                 Ok(count) => println!("{} documents indexed", count),
                 Err(_) => eprintln!("error in processing")
         },
-        Some(Commands::SearchPhase{ phase }) =>{
-            command_search_phase(&cli.index_dir, phase);
+        Some(Commands::SearchPhrase{ phrase }) =>
+            match command_search_phrase(&cli.index_dir, phrase){
+                Ok(_) => println!(""),
+                Err(_) => eprintln!("error in search phrase")
         },
         None => {
             command_load_index(&cli.index_dir);
@@ -65,10 +67,25 @@ fn command_build_index(corpus_dir: &str, index_dir: &str) -> io::Result<usize>{
     Ok(count)
 }
 
-fn command_search_phase(index_dir: &str, phase: &str) {
+fn command_search_phrase(index_dir: &str, phrase_option: &Option<String>) -> io::Result<()> {
     let engine = Engine::load_from(Path::new(index_dir));
     println!("index of {} documents loaded",engine.doc_count());
-    let result = engine.search_phase(phase);
+    match phrase_option {
+        Some(phrase_str) => search_phrase(&engine, &phrase_str),
+        None => {
+            println!("input phrase");
+            let stdin = io::stdin();
+            for line_result in stdin.lock().lines() {
+                let line = line_result?;
+                search_phrase(&engine, &line);
+            }    
+        }
+    }
+    Ok(())
+}
+
+fn search_phrase(engine: &Engine, phrase: &str){
+    let result = engine.search_phrase(phrase);
     let result_len = result.len();
     if result_len > 0 {
         println!("{} results", result_len);
@@ -77,13 +94,15 @@ fn command_search_phase(index_dir: &str, phase: &str) {
             println!("top 10:");
             display = 10;
         }
-        for i in 0..display{
-            println!("{}:{}", i+1, result[i]);
+        for (i,doc) in result.into_iter().enumerate().take(display){
+            println!("{}:{}", i+1, doc);
         }
-    }
-}
+    }else{
+        println!("no result");
+    }            
 
-fn command_load_index(index_dir: &str) {
+}
+fn command_load_index(index_dir: &str){
     let engine = Engine::load_from(Path::new(index_dir));
     println!("index of {} documents loaded",engine.doc_count());
 }

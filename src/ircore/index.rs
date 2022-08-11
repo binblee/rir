@@ -68,14 +68,14 @@ pub trait SchemaDependIndex {
     // get docs
     fn docs(&self, term_id: TermId) -> Option<HashSet<DocId>>; 
     fn docs_contain_all(&self, term_list: &Vec<TermId>) -> Option<HashSet<DocId>>;
-    // get term positions (for phase search)
+    // get term positions (for phrase search)
     fn first(&self, doc:DocId, term:TermId) -> Option<TermOffset>;
     fn next(&self, doc:DocId, term:TermId, after_position:TermOffset) -> Option<TermOffset>;
     fn last(&self, doc:DocId, term:TermId) -> Option<TermOffset>;
     fn prev(&self, doc:DocId, term:TermId, before_position:TermOffset) -> Option<TermOffset>;
     fn next_phrase(&self, doc:DocId, phrase: &Vec<TermId>, position:TermOffset) -> Option<(TermOffset, TermOffset)>;
     fn all_phrase(&self, doc: DocId, phrase: &Vec<TermId>) -> Vec<(TermOffset, TermOffset)>;
-    fn search_phase(&self, phase: Vec<&str>) -> Vec<Hits>;
+    fn search_phrase(&self, phrase: Vec<&str>) -> Vec<Hits>;
     // helper functions
     fn binary_search(
         positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
@@ -277,7 +277,7 @@ impl SchemaDependIndex for PositionList {
     fn next_phrase(
         &self, doc:DocId, phrase: &Vec<TermId>, position:TermOffset) 
         -> Option<(TermOffset, TermOffset)>{
-            if phrase.len() <= 0 {
+            if phrase.len() <= 1 {
                 return None;
             }
             let mut end = position;
@@ -292,7 +292,7 @@ impl SchemaDependIndex for PositionList {
                 match self.prev(doc, *term, start){
                     Some(pos) => start = pos,
                     None => {
-                        eprintln!("Error in reverse itration in nextPhase."); 
+                        eprintln!("Error in reverse itration in next Phrase."); 
                         std::process::exit(1)
                     }
                 }
@@ -306,6 +306,26 @@ impl SchemaDependIndex for PositionList {
 
     fn all_phrase(&self, doc: DocId, phrase: &Vec<TermId>) -> Vec<(TermOffset, TermOffset)> {
         let mut result = Vec::new();
+        // one word phrase
+        if phrase.len() == 0 {
+            return result;
+        }else if phrase.len() == 1 {
+            //only one token, return all positions in this doc
+            if self.postings_lists.contains_key(&phrase[0]) {
+                let positings = self.postings_lists.get(&phrase[0]).unwrap();
+                for post in positings {
+                    //TODO binary search
+                    if post.doc_id == doc {
+                        for pos in &post.positions {
+                            result.push((*pos, *pos));
+                        }
+                    }
+                }
+            }else{
+                return result;
+            }
+        }
+        // phrase that have at least two words
         let mut pos = 0;
         loop{
             match self.next_phrase(doc, phrase, pos) {
@@ -319,32 +339,34 @@ impl SchemaDependIndex for PositionList {
         result
     }
 
-    fn search_phase(&self, phase: Vec<&str>) -> Vec<Hits> {
-        let mut phase_ids = Vec::new();
-        for word in phase {
+    fn search_phrase(&self, phrase: Vec<&str>) -> Vec<Hits> {
+        let mut phrase_ids = vec![];
+        for word in phrase {
             if let Some(id) = self.word_dict.get_id(word){
-                phase_ids.push(id);
+                phrase_ids.push(id);
             }else{
-                println!("unknown ignore: {}", word);
+                println!("unknown: {}", word);
+                return vec![];
             }
         }
-        let mut docs = Vec::new();
-        if let Some(doc_set) = self.docs_contain_all(&phase_ids){
-            let docs_contain_all:Vec<DocId> = doc_set.into_iter().collect();
-            for doc in docs_contain_all {
-                let positions = self.all_phrase(doc, &phase_ids);
-                if positions.len() > 0 {
-                    docs.push(Hits{
-                        docid:doc,
-                        num: positions.len()
-                });
+        let mut docs = vec![];
+        if phrase_ids.len() > 0 {
+            if let Some(doc_set) = self.docs_contain_all(&phrase_ids){
+                let docs_contain_all:Vec<DocId> = doc_set.into_iter().collect();
+                for doc in docs_contain_all {
+                    let positions = self.all_phrase(doc, &phrase_ids);
+                    if positions.len() > 0 {
+                        docs.push(Hits{
+                            docid:doc,
+                            num: positions.len()
+                    });
+                    }
                 }
             }
-        }
-        use std::cmp::Reverse;
-        docs.sort_by_key(|item| Reverse(item.num)); // ranking for now...
+            use std::cmp::Reverse;
+            docs.sort_by_key(|item| Reverse(item.num)); // ranking for now...    
+        } 
         docs
-
     }
 
 }
@@ -415,7 +437,7 @@ fn test_docs_contain_term() {
 }
 
 #[test]
-fn test_phase() {
+fn test_prhase() {
     let mut idx = PositionList::new();
     let mut doc_id = idx.build_from(vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
     assert_eq!(doc_id, 1);
@@ -441,22 +463,34 @@ fn test_phase() {
 
     let docs = idx.docs_contain_all(&vec![5,6]);
     assert_eq!(docs, Some(HashSet::from([1,2])));
-    let mut phase_start_end = idx.all_phrase(1, &vec![5,6]);
-    assert_eq!(phase_start_end, vec![(6, 7), (8, 9)]);
-    phase_start_end = idx.all_phrase(2, &vec![5,6]);
-    assert_eq!(phase_start_end, vec![(1, 2)]);
+    let mut phrase_start_end = idx.all_phrase(1, &vec![5,6]);
+    assert_eq!(phrase_start_end, vec![(6, 7), (8, 9)]);
+    phrase_start_end = idx.all_phrase(2, &vec![5,6]);
+    assert_eq!(phrase_start_end, vec![(1, 2)]);
 }
 
 #[test]
-fn test_search_phase() {
+fn test_search_phrase() {
     let mut idx = PositionList::new();
     let mut doc_id = idx.build_from(vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
     assert_eq!(doc_id, 1);
     doc_id = idx.build_from(vec!["你", "好", "明", "天"]);
     assert_eq!(doc_id, 2);
 
-    let phase_in_tokens = vec!["你", "好"];
-    let docs = idx.search_phase(phase_in_tokens);
+    let mut phrase_in_tokens = vec!["你", "好"];
+    let mut docs = idx.search_phrase(phrase_in_tokens);
     assert_eq!(docs.len(), 2);
+
+    phrase_in_tokens = vec!["你"];
+    docs = idx.search_phrase(phrase_in_tokens);
+    assert_eq!(docs.len(), 2);
+
+    phrase_in_tokens = vec!["no"];
+    docs = idx.search_phrase(phrase_in_tokens);
+    assert_eq!(docs.len(), 0);
+
+    phrase_in_tokens = vec!["你", "no"];
+    docs = idx.search_phrase(phrase_in_tokens);
+    assert_eq!(docs.len(), 0);
 
 }

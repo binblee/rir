@@ -2,7 +2,7 @@ use super::index::{SchemaDependIndex, PositionList, DocId};
 use std::fs;
 use std::fs::File;
 use std::path::Path;
-use std::collections::HashMap;
+use std::collections::{HashMap};
 use super::tokenizer::{normalize, parse_tokens};
 use serde::{Serialize, Deserialize};
 use bincode;
@@ -66,10 +66,10 @@ impl Engine {
         Ok(())
     }
 
-    pub fn search_phase(&self, phase_str: &str) -> Vec<&String>{
-        let phase_normalized = normalize(&phase_str);
-        let phase_tokens = parse_tokens(&phase_normalized);
-        let hits_list = self.index.search_phase(phase_tokens);
+    pub fn search_phrase(&self, phrase_str: &str) -> Vec<&String>{
+        let phrase_normalized = normalize(&phrase_str);
+        let phrase_tokens = parse_tokens(&phrase_normalized);
+        let hits_list = self.index.search_phrase(phrase_tokens);
         let mut docs = vec![];
         for hits in hits_list {
             if let Some(docname) = self.doc_info.get(&hits.docid){
@@ -89,10 +89,40 @@ fn test_build_index() {
 }
 
 #[test]
-fn test_find_phase() {
+fn test_find_phrase() {
     let mut engine = Engine::new();
     let res = engine.build_index(&Path::new("./samples"));
     assert_eq!(res, Ok(5));
-    let docs = engine.search_phase("Quarrel sir");
-    assert_eq!(docs, ["./samples/a/2.txt", "./samples/a/1.txt"]);
+    let mut docs = engine.search_phrase("Quarrel sir");
+    use std::collections::HashSet;
+    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+    assert_eq!(doc_set, HashSet::from([&"./samples/a/1.txt".to_string(), &"./samples/a/2.txt".to_string()]));
+    docs = engine.search_phrase("sir");
+    assert_eq!(docs.len(), 4);
+
+    docs = engine.search_phrase("non-exist");
+    assert_eq!(docs.len(), 0);
+
+    docs = engine.search_phrase("Sir non-exist");
+    assert_eq!(docs.len(), 0);
+
+    docs = engine.search_phrase("Sir");
+    assert_eq!(docs.len(), 4);
+
+}
+
+#[test]
+fn test_save_and_load_index() {
+    let mut engine = Engine::new();
+    let res = engine.build_index(&Path::new("./samples"));
+    assert_eq!(res, Ok(5));
+    assert_eq!(engine.doc_count(), 5);
+    let index_path = &Path::new(".rir/samples.idx");
+    let _ = engine.save_to(index_path);
+    let loaded_engine = Engine::load_from(index_path);
+    assert_eq!(loaded_engine.doc_count(), 5);
+    let docs = engine.search_phrase("Quarrel sir");
+    use std::collections::HashSet;
+    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+    assert_eq!(doc_set, HashSet::from([&"./samples/a/1.txt".to_string(), &"./samples/a/2.txt".to_string()]));
 }
