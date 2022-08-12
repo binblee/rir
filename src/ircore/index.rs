@@ -1,10 +1,12 @@
 
 use std::collections::{HashMap, HashSet};
 use serde::{Serialize, Deserialize};
+use super::sparse_vector::{SparseVector, SparseVectorOp};
+use std::cmp::Reverse;
 
-type TermId = u32;
+pub type TermId = u32;
 pub type DocId = u32;
-type TermOffset = u32;
+pub type TermOffset = u32;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Posting {
@@ -54,12 +56,15 @@ pub struct PositionList {
     // the number of times term(termid) appears in document(doc_id)
     term_frequency: HashMap<(TermId, DocId), u32>,
     // number of tokens of a document measured in tokens
+    // TODO: use vector
     document_length: HashMap<DocId, u32>,
     total_document_length: u32,
     // average document length
     average_document_length: f32,
     // total number of documents
     document_count: u32,
+    // TF-IDF for all documents
+    tf_idf_matrix: Vec<SparseVector>,
 }
 
 pub trait SchemaDependIndex {
@@ -68,6 +73,8 @@ pub trait SchemaDependIndex {
     // get docs
     fn docs(&self, term_id: TermId) -> Option<HashSet<DocId>>; 
     fn docs_contain_all(&self, term_list: &Vec<TermId>) -> Option<HashSet<DocId>>;
+    fn docs_contain_any(&self, term_list: &Vec<TermId>) -> HashSet<DocId>;
+    fn is_valid_doc_id(&self, doc_id: DocId) -> bool;
     // get term positions (for phrase search)
     fn first(&self, doc:DocId, term:TermId) -> Option<TermOffset>;
     fn next(&self, doc:DocId, term:TermId, after_position:TermOffset) -> Option<TermOffset>;
@@ -76,6 +83,9 @@ pub trait SchemaDependIndex {
     fn next_phrase(&self, doc:DocId, phrase: &Vec<TermId>, position:TermOffset) -> Option<(TermOffset, TermOffset)>;
     fn all_phrase(&self, doc: DocId, phrase: &Vec<TermId>) -> Vec<(TermOffset, TermOffset)>;
     fn search_phrase(&self, phrase: Vec<&str>) -> Vec<Hits>;
+    // TF-IDF compute
+    fn compute_tf_idf(&mut self) -> Result<(),()>;
+    fn rank_cosine(&self, terms: Vec<&str>) -> Vec<DocScore>;
     // helper functions
     fn binary_search(
         positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
@@ -89,6 +99,11 @@ pub struct Hits {
     pub num: usize,
 }
 
+pub struct DocScore {
+    pub docid: DocId,
+    pub score: f32,
+}
+
 impl SchemaDependIndex for PositionList {
     fn new() -> Self {
         PositionList{
@@ -100,7 +115,8 @@ impl SchemaDependIndex for PositionList {
             document_length: HashMap::new(),
             total_document_length: 0,
             average_document_length: 0.0,
-            document_count: 0
+            document_count: 0,
+            tf_idf_matrix: vec![SparseVector::new()],
         }
     }
 
@@ -181,6 +197,21 @@ impl SchemaDependIndex for PositionList {
             None
         }
     }
+
+    fn docs_contain_any(&self, term_list: &Vec<TermId>) -> HashSet<DocId> {
+        let mut doc_set:HashSet<DocId> = HashSet::new();
+        for term in term_list {
+            if let Some(res_set) = self.docs(*term) {
+                    doc_set = &doc_set | &res_set;
+            }
+        }
+        doc_set
+    }
+
+    fn is_valid_doc_id(&self, doc_id: DocId) -> bool {
+        doc_id >= 1 && doc_id <= self.document_count + 1 
+    }
+
 
     fn first(&self, doc:DocId, term:TermId) -> Option<TermOffset> {
         if self.document_frequency.contains_key(&term) {
@@ -319,6 +350,7 @@ impl SchemaDependIndex for PositionList {
                         for pos in &post.positions {
                             result.push((*pos, *pos));
                         }
+                        break;
                     }
                 }
             }else{
@@ -363,11 +395,73 @@ impl SchemaDependIndex for PositionList {
                     }
                 }
             }
-            use std::cmp::Reverse;
             docs.sort_by_key(|item| Reverse(item.num)); // ranking for now...    
         } 
         docs
     }
+
+    fn compute_tf_idf(&mut self) -> Result<(),()>{
+        assert_eq!(self.document_count, self.document_length.len() as u32);
+        for _ in 0..self.document_count {
+            let tf_idf_vector = SparseVector::new();
+            self.tf_idf_matrix.push(tf_idf_vector);
+        }
+        let doc_count = self.document_count as f32;
+        for (term_id, doc_id) in self.term_frequency.keys() {
+            assert!(*doc_id <= self.document_count + 1);
+            let term_freq = *self.term_frequency.get( &(*term_id, *doc_id) ).unwrap() as f32;
+            assert!(self.document_frequency.contains_key(term_id));
+            let doc_freq = *self.document_frequency.get(term_id).unwrap() as f32;
+            let tfidf_first_pass = (term_freq.log2() + 1.0) * (doc_count / doc_freq).log2();
+            self.tf_idf_matrix[*doc_id as usize].vec_set(*term_id, tfidf_first_pass);
+        }
+        for i in 1..self.document_count + 1 {
+            self.tf_idf_matrix[i as usize].vec_normalize();
+        }
+        Ok(())
+    }
+    fn rank_cosine(&self, terms: Vec<&str>) -> Vec<DocScore> {
+        let mut scores = vec![];
+        // compute query string's TF-IDF vector
+        let mut term_ids = vec![];
+        for term in terms {
+            if let Some(id) = self.word_dict.get_id(term){
+                term_ids.push(id);
+            }else{
+                println!("unknown in query string: {}", term);
+            }
+        }
+        if term_ids.len() == 0 {
+            return scores;
+        }
+        let mut query_term_freq:HashMap<TermId, u32> = HashMap::new();
+        for &tid in &term_ids {
+            query_term_freq.entry(tid)
+                .and_modify(|count| *count += 1)
+                .or_insert(1);
+        }
+        let mut query_tfidf = SparseVector::new();
+        for &tid in query_term_freq.keys() {
+            let freq = *query_term_freq.get(&tid).unwrap() as f32;
+            let term_tfidf = (freq.log2() + 1f32 ) * 
+                (self.document_count as f32 / *self.document_frequency.get(&tid).unwrap() as f32).log2();
+            query_tfidf.vec_set(tid, term_tfidf);
+        }
+        query_tfidf.vec_normalize();
+        // go through all documents that contains at least one term
+        let docs_contain_any = self.docs_contain_any(&term_ids);
+        for doc_id in docs_contain_any {
+            if self.is_valid_doc_id(doc_id){
+                let doc_tfidf = &self.tf_idf_matrix[doc_id as usize];
+                let vec_distance = query_tfidf.vec_dot(doc_tfidf);
+                scores.push(DocScore{docid: doc_id, score: vec_distance});
+            }
+        }
+        // sort by socres
+        scores.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().reverse() );
+        scores
+    }
+
 
 }
 
@@ -427,12 +521,28 @@ fn test_docs_contain_term() {
     assert_eq!(doc_id, 1);
     doc_id = idx.build_from(vec!["你", "好", "明", "天"]);
     assert_eq!(doc_id, 2);
-    let term_ids = vec![1,6];
+    // contain all
+    let mut term_ids = vec![1,6];
     let mut doc_set = idx.docs_contain_all(&term_ids);
     assert_eq!(term_ids, vec![1,6]); //should be untouched
     assert_eq!(Some(HashSet::from([1])), doc_set);
+    // contain one term
     doc_set = idx.docs(6);
     assert_eq!(Some(HashSet::from([1,2])), doc_set);
+    // contain any
+    term_ids = vec![7];
+    let doc_set = idx.docs_contain_any(&term_ids);
+    assert_eq!(doc_set, HashSet::from([2]));
+    term_ids = vec![7, 5];
+    let doc_set = idx.docs_contain_any(&term_ids);
+    assert_eq!(doc_set, HashSet::from([1, 2]));
+    // invalid term id
+    term_ids = vec![100];
+    let doc_set = idx.docs_contain_any(&term_ids);
+    assert_eq!(doc_set.len(), 0);
+    term_ids = vec![7,100,7];
+    let doc_set = idx.docs_contain_any(&term_ids);
+    assert_eq!(doc_set, HashSet::from([2]));
 
 }
 
@@ -492,5 +602,38 @@ fn test_search_phrase() {
     phrase_in_tokens = vec!["你", "no"];
     docs = idx.search_phrase(phrase_in_tokens);
     assert_eq!(docs.len(), 0);
+}
+
+#[test]
+fn test_compute_tf_idf(){
+    let mut idx = PositionList::new();
+    let mut doc_id = idx.build_from(vec!["do", "you", "quarrel", "sir"]);
+    assert_eq!(doc_id, 1);
+    doc_id = idx.build_from(vec!["quarrel", "sir", "no", "sir"]);
+    assert_eq!(doc_id, 2);
+    doc_id = idx.build_from(vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
+        "i", "serve", "as", "good", "a", "man", "as", "you"]);
+    assert_eq!(doc_id, 3);
+    doc_id = idx.build_from(vec!["no", "better"]);
+    assert_eq!(doc_id, 4);
+    doc_id = idx.build_from(vec!["well", "sir"]);
+    assert_eq!(doc_id, 5);
+    assert!(idx.is_valid_doc_id(0) == false);
+    let tfidf_ok = idx.compute_tf_idf();
+    assert_eq!(idx.document_count, idx.document_length.len() as u32);
+    assert_eq!(tfidf_ok, Ok(()));
+    let docs = idx.rank_cosine(vec!["quarrel", "sir"]);
+    assert_eq!(docs.len(), 4);
+    let epsilon = 0.005;
+    // DocumentID 1    2    3    4    5
+    // Similarity 0.59 0.73 0.01 0.00 0.03
+    assert_eq!( docs[0].docid, 2 );
+    assert!( (docs[0].score - 0.73).abs() <= epsilon );
+    assert_eq!( docs[1].docid, 1 );
+    assert!( (docs[1].score - 0.59).abs() <= epsilon );
+    assert_eq!( docs[2].docid, 5 );
+    assert!( (docs[2].score - 0.03).abs() <= epsilon );
+    assert_eq!( docs[3].docid, 3 );
+    assert!( (docs[3].score - 0.01).abs() <= epsilon );
 
 }

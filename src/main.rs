@@ -60,7 +60,7 @@ fn main() {
 fn command_build_index(corpus_dir: &str, index_dir: &str) -> io::Result<usize>{
     let mut engine = Engine::new();
     let mut count = 0;
-    if let Ok(count_res) = engine.build_index(&Path::new(corpus_dir)){
+    if let Ok(count_res) = engine.build_index_from(&Path::new(corpus_dir)){
         count = count_res;
         engine.save_to(&Path::new(index_dir))?;
     }

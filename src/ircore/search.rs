@@ -37,6 +37,15 @@ impl Engine {
         Self::new()
     }
 
+    pub fn build_index_from(&mut self, path: &Path) -> Result<usize, ()> {
+        if let Ok(doc_count) = self.build_index(path) {
+            if let Ok(_) = self.compute_tf_idf() {
+                return Ok(doc_count);
+            }
+        }
+        Err(())
+    }
+
     pub fn build_index(&mut self, path: &Path) -> Result<usize, ()> {
         if path.is_file(){
             if let Ok(content) = fs::read_to_string(path){
@@ -57,6 +66,11 @@ impl Engine {
             }    
         }
         Ok(self.doc_info.len())    
+    }
+
+    pub fn compute_tf_idf(&mut self) -> Result<(),()> {
+
+        Ok(())
     }
 
     pub fn save_to(&mut self, path: &Path) -> io::Result<()> {
