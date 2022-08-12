@@ -31,7 +31,13 @@ enum Commands {
         #[clap(value_parser)]
         /// search phrase
         phrase: Option<String>,
-    }
+    },
+    /// Vector space model, ranke cosine
+    RankCosine {
+        #[clap(value_parser)]
+        /// search phrase
+        phrase: Option<String>,
+    },
 }
 
 fn main() {
@@ -48,8 +54,13 @@ fn main() {
         Some(Commands::SearchPhrase{ phrase }) =>
             match command_search_phrase(&cli.index_dir, phrase){
                 Ok(_) => println!(""),
-                Err(_) => eprintln!("error in search phrase")
+                Err(_) => eprintln!("error in search phrase"),
         },
+        Some(Commands::RankCosine{ phrase }) =>
+            match command_rank_cosine(&cli.index_dir, phrase){
+                Ok(_) => println!(""),
+                Err(_) => eprintln!("error in rank cosine"),
+            }
         None => {
             command_load_index(&cli.index_dir);
         }
@@ -107,5 +118,39 @@ fn command_load_index(index_dir: &str){
     println!("index of {} documents loaded",engine.doc_count());
 }
 
+fn command_rank_cosine(index_dir: &str, phrase_option: &Option<String>) -> io::Result<()> {
+    let engine = Engine::load_from(Path::new(index_dir));
+    println!("index of {} documents loaded",engine.doc_count());
+    match phrase_option {
+        Some(phrase_str) => rank_cosine(&engine, &phrase_str),
+        None => {
+            println!("rank cosine, input phrase");
+            let stdin = io::stdin();
+            for line_result in stdin.lock().lines() {
+                let line = line_result?;
+                rank_cosine(&engine, &line);
+            }    
+        }
+    }
+    Ok(())
+}
+
+fn rank_cosine(engine: &Engine, phrase: &str){
+    let result = engine.rank_cosine(phrase);
+    let result_len = result.len();
+    if result_len > 0 {
+        println!("{} results", result_len);
+        let mut display = result_len;
+        if result_len > 10 {
+            println!("top 10:");
+            display = 10;
+        }
+        for (i,doc) in result.into_iter().enumerate().take(display){
+            println!("{}:{}", i+1, doc);
+        }
+    }else{
+        println!("no result");
+    }
+}
 
 

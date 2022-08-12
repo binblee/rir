@@ -69,8 +69,10 @@ impl Engine {
     }
 
     pub fn compute_tf_idf(&mut self) -> Result<(),()> {
-
-        Ok(())
+        if self.doc_info.len() == 0 {
+            return Err(());
+        }
+        self.index.compute_tf_idf()
     }
 
     pub fn save_to(&mut self, path: &Path) -> io::Result<()> {
@@ -87,6 +89,19 @@ impl Engine {
         let mut docs = vec![];
         for hits in hits_list {
             if let Some(docname) = self.doc_info.get(&hits.docid){
+                docs.push(docname);
+            }
+        }
+        docs
+    }
+
+    pub fn rank_cosine(&self, query_str: &str) -> Vec<&String> {
+        let query_str_normalized = normalize(query_str);
+        let tokens = parse_tokens(&query_str_normalized);
+        let dscores = self.index.rank_cosine(tokens);
+        let mut docs = vec![];
+        for ds in dscores {
+            if let Some(docname) = self.doc_info.get(&ds.docid) {
                 docs.push(docname);
             }
         }
@@ -128,15 +143,36 @@ fn test_find_phrase() {
 #[test]
 fn test_save_and_load_index() {
     let mut engine = Engine::new();
-    let res = engine.build_index(&Path::new("./samples"));
+    let res = engine.build_index_from(&Path::new("./samples"));
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
     let index_path = &Path::new(".rir/samples.idx");
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
-    let docs = engine.search_phrase("Quarrel sir");
+    let docs = loaded_engine.search_phrase("Quarrel sir");
     use std::collections::HashSet;
     let doc_set: HashSet<&String> = HashSet::from_iter(docs);
     assert_eq!(doc_set, HashSet::from([&"./samples/a/1.txt".to_string(), &"./samples/a/2.txt".to_string()]));
+}
+
+#[test]
+fn test_rank_cosine() {
+    let mut engine = Engine::new();
+    let res = engine.build_index_from(&Path::new("./samples"));
+    assert_eq!(res, Ok(5));
+    assert_eq!(engine.doc_count(), 5);
+    let index_path = &Path::new(".rir/samples.idx");
+    let _ = engine.save_to(index_path);
+    let loaded_engine = Engine::load_from(index_path);
+    assert_eq!(loaded_engine.doc_count(), 5);
+    let docs = loaded_engine.rank_cosine("Quarrel sir");
+    use std::collections::HashSet;
+    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+    assert_eq!(doc_set, HashSet::from([
+            &"./samples/a/2.txt".to_string(), 
+            &"./samples/a/1.txt".to_string(),
+            &"./samples/5.txt".to_string(), 
+            &"./samples/b/3.txt".to_string(),
+            ]));
 }
