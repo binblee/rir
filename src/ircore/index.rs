@@ -1,7 +1,7 @@
-
 use std::collections::{HashMap, HashSet};
 use serde::{Serialize, Deserialize};
 use super::sparse_vector::{SparseVector, SparseVectorOp};
+use super::dictionary::Dictionary;
 use std::cmp::Reverse;
 
 pub type TermId = u32;
@@ -14,40 +14,10 @@ pub struct Posting {
     term_frequency: u32,
     positions: Vec<TermOffset>,
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-struct WordDic {
-    term_ids: HashMap<String, TermId>,
-    next_id: TermId,
-}
-
-impl WordDic {
-    fn new() -> Self {
-        WordDic {
-            term_ids: HashMap::new(),
-            next_id: 1,
-        }
-    }
-    fn get_id_or_insert(&mut self, word: &str) -> TermId {
-        let term_id = self.term_ids.entry(word.to_owned()).or_insert(self.next_id);
-        if self.next_id == *term_id {
-            self.next_id += 1;
-        }
-        *term_id
-    }
-    fn get_id(&self, word:&str) -> Option<TermId> {
-        if let Some(word_id) = self.term_ids.get(word) {
-            Some(*word_id)
-        }else{
-            None
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PositionList {
     // term string -> int(id)
-    word_dict: WordDic,
+    dict: Dictionary,
     // document list,  termid -> positions
     postings_lists: HashMap<TermId, Vec<Posting>>,
     next_doc_id: DocId,
@@ -107,7 +77,7 @@ pub struct DocScore {
 impl SchemaDependIndex for PositionList {
     fn new() -> Self {
         PositionList{
-            word_dict: WordDic::new(),
+            dict: Dictionary::new(),
             postings_lists: HashMap::new(),
             next_doc_id: 1,
             document_frequency: HashMap::new(),
@@ -135,7 +105,7 @@ impl SchemaDependIndex for PositionList {
         // build position index
         for (seq, word) in tokens.into_iter().enumerate() {
             let term_offset = seq as TermOffset + 1;
-            let term_id = self.word_dict.get_id_or_insert(word);
+            let term_id = self.dict.add(word);
             let postings = self.postings_lists.entry(term_id).or_insert_with(Vec::new);
             if postings.len() == 0 || postings.last().unwrap().doc_id != doc_id {
                 postings.push(Posting{
@@ -374,7 +344,7 @@ impl SchemaDependIndex for PositionList {
     fn search_phrase(&self, phrase: Vec<&str>) -> Vec<Hits> {
         let mut phrase_ids = vec![];
         for word in phrase {
-            if let Some(id) = self.word_dict.get_id(word){
+            if let Some(id) = self.dict.get(word){
                 phrase_ids.push(id);
             }else{
                 println!("unknown: {}", word);
@@ -425,7 +395,7 @@ impl SchemaDependIndex for PositionList {
         // compute query string's TF-IDF vector
         let mut term_ids = vec![];
         for term in terms {
-            if let Some(id) = self.word_dict.get_id(term){
+            if let Some(id) = self.dict.get(term){
                 term_ids.push(id);
             }else{
                 println!("unknown in query string: {}", term);
@@ -471,7 +441,7 @@ fn test_index_from_string(){
     let mut doc_id = idx.build_from(vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
     /*
     PositionList { 
-        word_dict: WordDic { term_ids: {"hello": 1, "世": 3, "好": 6, "界": 4, "world": 2, "你": 5}, next_id: 7 }, 
+        dict: Dictionary { term_ids: {"hello": 1, "世": 3, "好": 6, "界": 4, "world": 2, "你": 5}, next_id: 7 }, 
         postings_lists: {1: [Posting { doc_id: 1, term_frequency: 2, positions: [1, 3] }], 5: [Posting { doc_id: 1, term_frequency: 2, positions: [6, 8] }], 6: [Posting { doc_id: 1, term_frequency: 2, positions: [7, 9] }], 3: [Posting { doc_id: 1, term_frequency: 1, positions: [4] }], 2: [Posting { doc_id: 1, term_frequency: 1, positions: [2] }], 4: [Posting { doc_id: 1, term_frequency: 1, positions: [5] }]}, 
         next_doc_id: 2, 
         document_frequency: {1: 1, 6: 1, 4: 1, 2: 1, 3: 1, 5: 1}, 
@@ -483,9 +453,9 @@ fn test_index_from_string(){
     }
     */
     assert_eq!(doc_id, 1);
-    assert_eq!(idx.word_dict.term_ids.len(), 6);
-    assert_eq!(idx.postings_lists.len(), idx.word_dict.term_ids.len());
-    assert_eq!(idx.document_frequency.len(), idx.word_dict.term_ids.len());
+    assert_eq!(idx.dict.get_term_count(), 6);
+    assert_eq!(idx.postings_lists.len(), idx.dict.get_term_count());
+    assert_eq!(idx.document_frequency.len(), idx.dict.get_term_count());
     assert_eq!(idx.term_frequency.len(), 6);
     assert_eq!(idx.total_document_length, 9);
     assert_eq!(idx.average_document_length, 9.0);
@@ -494,7 +464,7 @@ fn test_index_from_string(){
     doc_id = idx.build_from(vec!["你", "好", "明", "天"]);
     /*
     PositionList { 
-        word_dict: WordDic { term_ids: {"天": 8, "你": 5, "明": 7, "hello": 1, "世": 3, "好": 6, "界": 4, "world": 2}, next_id: 9 }, 
+        dict: Dictionary { term_ids: {"天": 8, "你": 5, "明": 7, "hello": 1, "世": 3, "好": 6, "界": 4, "world": 2}, next_id: 9 }, 
         postings_lists: {1: [Posting { doc_id: 1, term_frequency: 2, positions: [1, 3] }], 3: [Posting { doc_id: 1, term_frequency: 1, positions: [4] }], 4: [Posting { doc_id: 1, term_frequency: 1, positions: [5] }], 7: [Posting { doc_id: 2, term_frequency: 1, positions: [3] }], 5: [Posting { doc_id: 1, term_frequency: 2, positions: [6, 8] }, Posting { doc_id: 2, term_frequency: 1, positions: [1] }], 6: [Posting { doc_id: 1, term_frequency: 2, positions: [7, 9] }, Posting { doc_id: 2, term_frequency: 1, positions: [2] }], 8: [Posting { doc_id: 2, term_frequency: 1, positions: [4] }], 2: [Posting { doc_id: 1, term_frequency: 1, positions: [2] }]}, 
         next_doc_id: 3, 
         document_frequency: {6: 2, 4: 1, 3: 1, 1: 1, 8: 1, 5: 2, 2: 1, 7: 1}, 
@@ -505,9 +475,9 @@ fn test_index_from_string(){
         document_count: 2 }    
     */
     assert_eq!(doc_id, 2);    
-    assert_eq!(idx.word_dict.term_ids.len(), 8);
-    assert_eq!(idx.postings_lists.len(), idx.word_dict.term_ids.len());
-    assert_eq!(idx.document_frequency.len(), idx.word_dict.term_ids.len());
+    assert_eq!(idx.dict.get_term_count(), 8);
+    assert_eq!(idx.postings_lists.len(), idx.dict.get_term_count());
+    assert_eq!(idx.document_frequency.len(), idx.dict.get_term_count());
     assert_eq!(idx.term_frequency.len(), 10);
     assert_eq!(idx.total_document_length, 13);
     assert_eq!(idx.average_document_length, 6.5);
