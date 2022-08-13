@@ -1,6 +1,5 @@
 use super::index::{SchemaDependIndex, PositionList, DocId};
-use std::fs;
-use std::fs::File;
+use std::fs::{self, File};
 use std::path::Path;
 use std::collections::{HashMap};
 use super::tokenizer::{normalize, parse_tokens};
@@ -76,6 +75,9 @@ impl Engine {
     }
 
     pub fn save_to(&mut self, path: &Path) -> io::Result<()> {
+        if let Some(dir) = path.parent() {
+            fs::create_dir_all(dir)?;
+        }
         let encoded: Vec<u8> = bincode::serialize(self).unwrap();
         let mut writer = File::create(path)?;
         writer.write_all(&encoded)?;
@@ -162,7 +164,7 @@ fn test_rank_cosine() {
     let res = engine.build_index_from(&Path::new("./samples"));
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/samples.idx");
+    let index_path = &Path::new(".rir/samples2.idx");
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
