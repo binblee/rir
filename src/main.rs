@@ -1,6 +1,6 @@
 pub mod ircore;
 use std::path::Path;
-use ircore::search::Engine;
+use ircore::engine::Engine;
 use clap::{Parser, Subcommand};
 use std::io::{self, BufRead};
 

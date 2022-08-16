@@ -1,4 +1,4 @@
-use super::index::{SchemaDependIndex, PositionList, DocId};
+use super::index::{SchemaDependIndex, PositionList, DocId, DocScore};
 use std::fs::{self, File};
 use std::path::Path;
 use std::collections::{HashMap};
@@ -84,43 +84,31 @@ impl Engine {
         Ok(())
     }
 
-    pub fn search_phrase(&self, phrase_str: &str) -> Vec<&String>{
+    fn query(&self, 
+            phrase_str: &str, 
+            fn_query: fn(&PositionList, &Vec<&str>) -> Vec<DocScore>) -> Vec<&String>{
         let phrase_normalized = normalize(&phrase_str);
         let phrase_tokens = parse_tokens(&phrase_normalized);
-        let hits_list = self.index.search_phrase(phrase_tokens);
+        let doc_scores = fn_query(&self.index, &phrase_tokens);
         let mut docs = vec![];
-        for hits in hits_list {
-            if let Some(docname) = self.doc_info.get(&hits.docid){
+        for doc in doc_scores {
+            if let Some(docname) = self.doc_info.get(&doc.docid){
                 docs.push(docname);
             }
         }
         docs
+    }
+
+    pub fn search_phrase(&self, phrase_str: &str) -> Vec<&String>{
+        self.query(phrase_str, PositionList::search_phrase)
     }
 
     pub fn rank_cosine(&self, query_str: &str) -> Vec<&String> {
-        let query_str_normalized = normalize(query_str);
-        let tokens = parse_tokens(&query_str_normalized);
-        let dscores = self.index.rank_cosine(tokens);
-        let mut docs = vec![];
-        for ds in dscores {
-            if let Some(docname) = self.doc_info.get(&ds.docid) {
-                docs.push(docname);
-            }
-        }
-        docs
+        self.query(query_str, PositionList::rank_cosine)
     }
 
     pub fn rank_bm25(&self, query_str: &str) -> Vec<&String> {
-        let query_str_normalized = normalize(query_str);
-        let tokens = parse_tokens(&query_str_normalized);
-        let dscores = self.index.rank_bm25(tokens);
-        let mut docs = vec![];
-        for ds in dscores {
-            if let Some(docname) = self.doc_info.get(&ds.docid) {
-                docs.push(docname);
-            }
-        }
-        docs
+        self.query(query_str, PositionList::rank_bm25)
     }
 
 }

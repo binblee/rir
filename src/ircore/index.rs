@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use serde::{Serialize, Deserialize};
 use super::sparse_vector::{SparseVector, SparseVectorOp};
 use super::dictionary::Dictionary;
-use std::cmp::Reverse;
 
 pub type TermId = u32;
 pub type DocId = u32;
@@ -52,12 +51,12 @@ pub trait SchemaDependIndex {
     fn prev(&self, doc:DocId, term:TermId, before_position:TermOffset) -> Option<TermOffset>;
     fn next_phrase(&self, doc:DocId, phrase: &Vec<TermId>, position:TermOffset) -> Option<(TermOffset, TermOffset)>;
     fn all_phrase(&self, doc: DocId, phrase: &Vec<TermId>) -> Vec<(TermOffset, TermOffset)>;
-    fn search_phrase(&self, phrase: Vec<&str>) -> Vec<Hits>;
+    fn search_phrase(&self, phrase: &Vec<&str>) -> Vec<DocScore>;
     // TF-IDF compute
     fn compute_tf_idf(&mut self) -> Result<(),()>;
-    fn rank_cosine(&self, terms: Vec<&str>) -> Vec<DocScore>;
+    fn rank_cosine(&self, terms: &Vec<&str>) -> Vec<DocScore>;
     // RM25
-    fn rank_bm25(&self, terms: Vec<&str>) -> Vec<DocScore>;
+    fn rank_bm25(&self, terms: &Vec<&str>) -> Vec<DocScore>;
     // helper functions
     fn binary_search(
         positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
@@ -65,11 +64,11 @@ pub trait SchemaDependIndex {
 
 }
 
-#[derive(Debug)]
-pub struct Hits {
-    pub docid: DocId,
-    pub num: usize,
-}
+// #[derive(Debug)]
+// pub struct Hits {
+//     pub docid: DocId,
+//     pub num: usize,
+// }
 
 pub struct DocScore {
     pub docid: DocId,
@@ -343,7 +342,7 @@ impl SchemaDependIndex for PositionList {
         result
     }
 
-    fn search_phrase(&self, phrase: Vec<&str>) -> Vec<Hits> {
+    fn search_phrase(&self, phrase: &Vec<&str>) -> Vec<DocScore> {
         let mut phrase_ids = vec![];
         for word in phrase {
             if let Some(id) = self.dict.get(word){
@@ -353,23 +352,23 @@ impl SchemaDependIndex for PositionList {
                 return vec![];
             }
         }
-        let mut docs = vec![];
+        let mut scores = vec![];
         if phrase_ids.len() > 0 {
             if let Some(doc_set) = self.docs_contain_all(&phrase_ids){
                 let docs_contain_all:Vec<DocId> = doc_set.into_iter().collect();
                 for doc in docs_contain_all {
                     let positions = self.all_phrase(doc, &phrase_ids);
                     if positions.len() > 0 {
-                        docs.push(Hits{
+                        scores.push(DocScore{
                             docid:doc,
-                            num: positions.len()
+                            score: positions.len() as f32,
                     });
                     }
                 }
             }
-            docs.sort_by_key(|item| Reverse(item.num)); // ranking for now...    
+            scores.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().reverse() );   
         } 
-        docs
+        scores
     }
 
     fn compute_tf_idf(&mut self) -> Result<(),()>{
@@ -392,7 +391,7 @@ impl SchemaDependIndex for PositionList {
         }
         Ok(())
     }
-    fn rank_cosine(&self, terms: Vec<&str>) -> Vec<DocScore> {
+    fn rank_cosine(&self, terms: &Vec<&str>) -> Vec<DocScore> {
         let mut scores = vec![];
         // compute query string's TF-IDF vector
         let mut term_ids = vec![];
@@ -442,11 +441,11 @@ impl SchemaDependIndex for PositionList {
     //   b: level of normalization of document length, default 0.75
     //   N: total count of document
     //   Nt: total count of document that contain term t
-    fn rank_bm25(&self, terms: Vec<&str>) -> Vec<DocScore> {
+    fn rank_bm25(&self, terms: &Vec<&str>) -> Vec<DocScore> {
         let mut scores = vec![];
         // find out query term frequency
         let mut term_ids = vec![];
-        for term in &terms {
+        for term in terms {
             if let Some(id) = self.dict.get(term){
                 term_ids.push(id);
             }else{
@@ -615,20 +614,25 @@ fn test_search_phrase() {
     assert_eq!(doc_id, 2);
 
     let mut phrase_in_tokens = vec!["你", "好"];
-    let mut docs = idx.search_phrase(phrase_in_tokens);
+    let mut docs = idx.search_phrase(&phrase_in_tokens);
     assert_eq!(docs.len(), 2);
+    assert_eq!(phrase_in_tokens.len(),2);
 
     phrase_in_tokens = vec!["你"];
-    docs = idx.search_phrase(phrase_in_tokens);
+    docs = idx.search_phrase(&phrase_in_tokens);
     assert_eq!(docs.len(), 2);
+    assert_eq!(phrase_in_tokens.len(),1);
 
     phrase_in_tokens = vec!["no"];
-    docs = idx.search_phrase(phrase_in_tokens);
+    docs = idx.search_phrase(&phrase_in_tokens);
     assert_eq!(docs.len(), 0);
+    assert_eq!(phrase_in_tokens.len(),1);
 
     phrase_in_tokens = vec!["你", "no"];
-    docs = idx.search_phrase(phrase_in_tokens);
+    docs = idx.search_phrase(&phrase_in_tokens);
     assert_eq!(docs.len(), 0);
+    assert_eq!(phrase_in_tokens.len(),2);
+
 }
 
 #[test]
@@ -649,7 +653,9 @@ fn test_rank_cosine(){
     let tfidf_ok = idx.compute_tf_idf();
     assert_eq!(idx.document_count, idx.document_length.len() as u32);
     assert_eq!(tfidf_ok, Ok(()));
-    let docs = idx.rank_cosine(vec!["quarrel", "sir"]);
+    let query = vec!["quarrel", "sir"];
+    let docs = idx.rank_cosine(&query);
+    assert_eq!(query.len(), 2);
     assert_eq!(docs.len(), 4);
     // DocumentID 1    2    3    4    5
     // Similarity 0.59 0.73 0.01 0.00 0.03
@@ -679,8 +685,10 @@ fn test_rank_bm25(){
     doc_id = idx.build_from(vec!["well", "sir"]);
     assert_eq!(doc_id, 5);
     assert!(idx.is_valid_doc_id(0) == false);
-    let docs = idx.rank_bm25(vec!["quarrel", "sir"]);
+    let query = vec!["quarrel", "sir"];
+    let docs = idx.rank_bm25(&query);
     assert_eq!(docs.len(), 4);
+    assert_eq!(query.len(),2); // unchanged
     // DocumentID 2    1    5    3
     // Score      1.98 1.86 0.44 0.18
     let epsilon = 0.005;
