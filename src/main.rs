@@ -38,6 +38,12 @@ enum Commands {
         /// search phrase
         phrase: Option<String>,
     },
+    /// Probabilistic model: BM25
+    RankBM25 {
+        #[clap(value_parser)]
+        /// search phrase
+        phrase: Option<String>,
+    }
 }
 
 fn main() {
@@ -50,17 +56,22 @@ fn main() {
             match command_build_index(corpus_dir, &cli.index_dir){
                 Ok(count) => println!("{} documents indexed", count),
                 Err(_) => eprintln!("error in processing")
-        },
+            },
         Some(Commands::SearchPhrase{ phrase }) =>
             match command_search_phrase(&cli.index_dir, phrase){
                 Ok(_) => println!(""),
                 Err(_) => eprintln!("error in search phrase"),
-        },
+            },
         Some(Commands::RankCosine{ phrase }) =>
             match command_rank_cosine(&cli.index_dir, phrase){
                 Ok(_) => println!(""),
                 Err(_) => eprintln!("error in rank cosine"),
-            }
+            },
+        Some(Commands::RankBM25{ phrase }) =>
+            match command_rank_bm25(&cli.index_dir, phrase){
+                Ok(_) => println!(""),
+                Err(_) => eprintln!("error in BM25"),
+            },
         None => {
             command_load_index(&cli.index_dir);
         }
@@ -153,4 +164,38 @@ fn rank_cosine(engine: &Engine, phrase: &str){
     }
 }
 
+fn command_rank_bm25(index_dir: &str, phrase_option: &Option<String>) -> io::Result<()> {
+    let engine = Engine::load_from(Path::new(index_dir));
+    println!("index of {} documents loaded",engine.doc_count());
+    match phrase_option {
+        Some(phrase_str) => rank_bm25(&engine, &phrase_str),
+        None => {
+            println!("rank BM25, input phrase");
+            let stdin = io::stdin();
+            for line_result in stdin.lock().lines() {
+                let line = line_result?;
+                rank_cosine(&engine, &line);
+            }    
+        }
+    }
+    Ok(())
+}
+
+fn rank_bm25(engine: &Engine, phrase: &str){
+    let result = engine.rank_bm25(phrase);
+    let result_len = result.len();
+    if result_len > 0 {
+        println!("{} results", result_len);
+        let mut display = result_len;
+        if result_len > 10 {
+            println!("top 10:");
+            display = 10;
+        }
+        for (i,doc) in result.into_iter().enumerate().take(display){
+            println!("{}:{}", i+1, doc);
+        }
+    }else{
+        println!("no result");
+    }
+}
 

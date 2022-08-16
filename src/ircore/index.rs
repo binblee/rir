@@ -56,6 +56,8 @@ pub trait SchemaDependIndex {
     // TF-IDF compute
     fn compute_tf_idf(&mut self) -> Result<(),()>;
     fn rank_cosine(&self, terms: Vec<&str>) -> Vec<DocScore>;
+    // RM25
+    fn rank_bm25(&self, terms: Vec<&str>) -> Vec<DocScore>;
     // helper functions
     fn binary_search(
         positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
@@ -432,6 +434,61 @@ impl SchemaDependIndex for PositionList {
         scores
     }
 
+    // The BM25 algorithm
+    // for all term t sum qt * ftd*(k1+1)/(k1*(1-b+b*(ld/lvag)) + ftd) * log(N/Nt)
+    //   qt: query term frequency
+    //   ftd: inverted term document frequency, document_length[doc_id]
+    //   k1: weight saturation factor, default 1.2
+    //   b: level of normalization of document length, default 0.75
+    //   N: total count of document
+    //   Nt: total count of document that contain term t
+    fn rank_bm25(&self, terms: Vec<&str>) -> Vec<DocScore> {
+        let mut scores = vec![];
+        // find out query term frequency
+        let mut term_ids = vec![];
+        for term in &terms {
+            if let Some(id) = self.dict.get(term){
+                term_ids.push(id);
+            }else{
+                println!("unknown in query string: {}", term);
+            }
+        }
+        if term_ids.len() == 0 {
+            return scores;
+        }
+        let mut query_term_freq:HashMap<TermId, u32> = HashMap::new();
+        for &tid in &term_ids {
+            query_term_freq.entry(tid)
+                .and_modify(|count| *count += 1)
+                .or_insert(1);
+        }
+        // compute scores
+        let k1 = 1.2f32;
+        let k1plus1 = k1 + 1.0;
+        let b = 0.75f32;
+        let document_count = self.document_count as f32;
+        let lavg = self.average_document_length as f32;
+        let docs_contain_any = self.docs_contain_any(&term_ids);
+        for docid in docs_contain_any {
+            let ld = *self.document_length.get(&docid).unwrap() as f32;
+            let k1_b_ld_lavg = k1*(1.0-b+b*(ld/lavg));
+            let mut score = 0f32;
+            for &tid in query_term_freq.keys() {
+                let qt = *query_term_freq.get(&tid).unwrap() as f32;
+                if let Some(ftd_ref) = self.term_frequency.get(&(tid, docid)){
+                    let nt = *self.document_frequency.get(&tid).unwrap() as f32;
+                    let idf = (document_count/nt).log2(); 
+                    let ftd = *ftd_ref as f32;
+                    score += qt * ftd * k1plus1 / (k1_b_ld_lavg + ftd) * idf;    
+                }
+            }
+            scores.push(DocScore{docid: docid, score:score});  
+        }
+        // sort by socres
+        scores.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().reverse() );
+        scores
+    }
+
 
 }
 
@@ -575,7 +632,7 @@ fn test_search_phrase() {
 }
 
 #[test]
-fn test_compute_tf_idf(){
+fn test_rank_cosine(){
     let mut idx = PositionList::new();
     let mut doc_id = idx.build_from(vec!["do", "you", "quarrel", "sir"]);
     assert_eq!(doc_id, 1);
@@ -594,9 +651,9 @@ fn test_compute_tf_idf(){
     assert_eq!(tfidf_ok, Ok(()));
     let docs = idx.rank_cosine(vec!["quarrel", "sir"]);
     assert_eq!(docs.len(), 4);
-    let epsilon = 0.005;
     // DocumentID 1    2    3    4    5
     // Similarity 0.59 0.73 0.01 0.00 0.03
+    let epsilon = 0.005;
     assert_eq!( docs[0].docid, 2 );
     assert!( (docs[0].score - 0.73).abs() <= epsilon );
     assert_eq!( docs[1].docid, 1 );
@@ -605,5 +662,35 @@ fn test_compute_tf_idf(){
     assert!( (docs[2].score - 0.03).abs() <= epsilon );
     assert_eq!( docs[3].docid, 3 );
     assert!( (docs[3].score - 0.01).abs() <= epsilon );
+}
+
+#[test]
+fn test_rank_bm25(){
+    let mut idx = PositionList::new();
+    let mut doc_id = idx.build_from(vec!["do", "you", "quarrel", "sir"]);
+    assert_eq!(doc_id, 1);
+    doc_id = idx.build_from(vec!["quarrel", "sir", "no", "sir"]);
+    assert_eq!(doc_id, 2);
+    doc_id = idx.build_from(vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
+        "i", "serve", "as", "good", "a", "man", "as", "you"]);
+    assert_eq!(doc_id, 3);
+    doc_id = idx.build_from(vec!["no", "better"]);
+    assert_eq!(doc_id, 4);
+    doc_id = idx.build_from(vec!["well", "sir"]);
+    assert_eq!(doc_id, 5);
+    assert!(idx.is_valid_doc_id(0) == false);
+    let docs = idx.rank_bm25(vec!["quarrel", "sir"]);
+    assert_eq!(docs.len(), 4);
+    // DocumentID 2    1    5    3
+    // Score      1.98 1.86 0.44 0.18
+    let epsilon = 0.005;
+    assert_eq!( docs[0].docid, 2 );
+    assert!( (docs[0].score - 1.98).abs() <= epsilon );
+    assert_eq!( docs[1].docid, 1 );
+    assert!( (docs[1].score - 1.86).abs() <= epsilon );
+    assert_eq!( docs[2].docid, 5 );
+    assert!( (docs[2].score - 0.44).abs() <= epsilon );
+    assert_eq!( docs[3].docid, 3 );
+    assert!( (docs[3].score - 0.18).abs() <= epsilon );
 
 }
