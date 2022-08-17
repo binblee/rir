@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
+use std::cmp::Reverse;
 use serde::{Serialize, Deserialize};
 use super::sparse_vector::{SparseVector, SparseVectorOp};
-use super::dictionary::Dictionary;
+use super::dictionary::{Dictionary, DictionaryInfo};
 
 pub type TermId = u32;
 pub type DocId = u32;
@@ -36,6 +37,17 @@ pub struct PositionList {
     tf_idf_matrix: Vec<SparseVector>,
 }
 
+pub struct IndexInfo {
+    // total document length in tokens
+    pub total_document_length: u32,
+    // average document length
+    pub average_document_length: f32,
+    // total number of documents
+    pub document_count: u32,
+    pub dic_info: DictionaryInfo,
+    pub term_freq: Vec<(TermId, String, u32)>,
+}
+
 pub trait SchemaDependIndex {
     fn new() -> Self;
     fn build_from(&mut self, tokens: Vec<&str>) -> DocId;
@@ -57,18 +69,14 @@ pub trait SchemaDependIndex {
     fn rank_cosine(&self, terms: &Vec<&str>) -> Vec<DocScore>;
     // RM25
     fn rank_bm25(&self, terms: &Vec<&str>) -> Vec<DocScore>;
+    // Summary
+    fn info(&self) -> IndexInfo;
     // helper functions
     fn binary_search(
         positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
         test_fn: fn(u32, u32) -> bool, retval_fn: fn(usize, usize) -> usize) -> usize;
 
 }
-
-// #[derive(Debug)]
-// pub struct Hits {
-//     pub docid: DocId,
-//     pub num: usize,
-// }
 
 pub struct DocScore {
     pub docid: DocId,
@@ -133,6 +141,30 @@ impl SchemaDependIndex for PositionList {
             }
         }
         doc_id
+    }
+
+    // Summary
+    fn info(&self) -> IndexInfo {
+        let mut idx_info = IndexInfo {
+            total_document_length: self.total_document_length,
+            average_document_length: self.average_document_length,
+            document_count: self.document_count,
+            dic_info: self.dict.info(),
+            term_freq: vec![],
+        };
+        let mut term_freq_map:HashMap<TermId, u32> = HashMap::new();
+        for ((tid, _), &freq) in &self.term_frequency{
+            term_freq_map.entry(*tid)
+                .and_modify(| count | *count += freq)
+                .or_insert(freq);
+        }
+        for (tid, freq) in &term_freq_map {
+            if *freq > 1 {
+                idx_info.term_freq.push((*tid, self.dict.get_term_by_id(*tid), *freq));
+            }
+        }
+        idx_info.term_freq.sort_by_key(|itm| Reverse(itm.2) );
+        idx_info
     }
     
     fn docs(&self, term_id: TermId) -> Option<HashSet<DocId>> {

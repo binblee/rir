@@ -1,4 +1,4 @@
-use super::index::{SchemaDependIndex, PositionList, DocId, DocScore};
+use super::index::{SchemaDependIndex, PositionList, DocId, DocScore, IndexInfo};
 use std::fs::{self, File};
 use std::path::Path;
 use std::collections::{HashMap};
@@ -82,6 +82,10 @@ impl Engine {
         let mut writer = File::create(path)?;
         writer.write_all(&encoded)?;
         Ok(())
+    }
+
+    pub fn info(&self) -> IndexInfo {
+        self.index.info()
     }
 
     fn query(&self, 

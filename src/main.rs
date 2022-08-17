@@ -85,6 +85,7 @@ fn command_build_index(corpus_dir: &str, index_dir: &str) -> io::Result<usize>{
     if let Ok(count_res) = engine.build_index_from(&Path::new(corpus_dir)){
         count = count_res;
         engine.save_to(&Path::new(index_dir))?;
+        info(&engine);
     }
     Ok(count)
 }
@@ -126,7 +127,7 @@ fn search_phrase(engine: &Engine, phrase: &str){
 }
 fn command_load_index(index_dir: &str){
     let engine = Engine::load_from(Path::new(index_dir));
-    println!("index of {} documents loaded",engine.doc_count());
+    info(&engine);
 }
 
 fn command_rank_cosine(index_dir: &str, phrase_option: &Option<String>) -> io::Result<()> {
@@ -144,6 +145,24 @@ fn command_rank_cosine(index_dir: &str, phrase_option: &Option<String>) -> io::R
         }
     }
     Ok(())
+}
+
+fn info(engine: &Engine) {
+    let idx_info = engine.info();
+    println!("===Index===");
+    println!("total document: {}", idx_info.document_count);
+    println!("total length: {}", idx_info.total_document_length);
+    println!("average length: {}", idx_info.average_document_length);
+    println!("===Dictionary===");
+    println!("total term count: {}", idx_info.dic_info.term_count);
+    let display_num = 100;
+    println!("===Top {} terms===", display_num);
+    let mut sum_so_far:f32 = 0.0;
+    for (i, (_, term, count)) in idx_info.term_freq.into_iter().enumerate().take(display_num){
+        let freq = count as f32 * 100.0 / idx_info.total_document_length as f32;
+        sum_so_far += freq;
+        println!("{:5}: {}=>{} ({:.3}%, {:.3}%)", i+1, term, count, freq, sum_so_far);
+    }
 }
 
 fn rank_cosine(engine: &Engine, phrase: &str){
