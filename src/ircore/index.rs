@@ -159,9 +159,7 @@ impl SchemaDependIndex for PositionList {
                 .or_insert(freq);
         }
         for (tid, freq) in &term_freq_map {
-            if *freq > 1 {
-                idx_info.term_freq.push((*tid, self.dict.get_term_by_id(*tid), *freq));
-            }
+            idx_info.term_freq.push((*tid, self.dict.get_term_by_id(*tid), *freq));
         }
         idx_info.term_freq.sort_by_key(|itm| Reverse(itm.2) );
         idx_info

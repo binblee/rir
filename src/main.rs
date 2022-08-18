@@ -153,7 +153,6 @@ fn info(engine: &Engine) {
     println!("total document: {}", idx_info.document_count);
     println!("total length: {}", idx_info.total_document_length);
     println!("average length: {}", idx_info.average_document_length);
-    println!("===Dictionary===");
     println!("total term count: {}", idx_info.dic_info.term_count);
     let display_num = 100;
     println!("===Top {} terms===", display_num);
