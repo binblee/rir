@@ -1,23 +1,29 @@
-use super::index::{SchemaDependIndex, PositionList, DocId, DocScore, IndexInfo};
+use super::index::{SchemaDependIndex, PositionList, DocId, DocScore, IndexSummary, TermId};
+use super::analyzer::{Analyzer, AnalyzerSummary};
 use std::fs::{self, File};
 use std::path::Path;
 use std::collections::{HashMap};
-use super::tokenizer::{normalize, parse_tokens};
 use serde::{Serialize, Deserialize};
 use bincode;
-use std::io;
-use std::io::{Write, Read};
+use std::io::{self, Write, Read};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Engine {
     index: PositionList,
+    analyzer: Analyzer,
     doc_info: HashMap<DocId, String>,
+}
+
+pub struct Summary {
+    pub index: IndexSummary,
+    pub analyzer: AnalyzerSummary,
 }
 
 impl Engine {
     pub fn new() -> Self {
         Engine{
             index: PositionList::new(),
+            analyzer: Analyzer::new(),
             doc_info: HashMap::new(),
         }
     }
@@ -48,9 +54,8 @@ impl Engine {
     pub fn build_index(&mut self, path: &Path) -> Result<usize, ()> {
         if path.is_file(){
             if let Ok(content) = fs::read_to_string(path){
-                let normalized_content = normalize(&content);
-                let tokens = parse_tokens(&normalized_content);
-                let id = self.index.build_from(tokens);
+                let term_ids = self.analyzer.analyze(&content);
+                let id = self.index.build_from(&term_ids);
                 if let Some(path_str) = path.to_str(){
                     self.doc_info.insert(id, path_str.to_owned());
                 }
@@ -84,35 +89,44 @@ impl Engine {
         Ok(())
     }
 
-    pub fn info(&self) -> IndexInfo {
-        self.index.info()
+    pub fn summary(&self) -> Summary {
+        Summary{
+            index: self.index.summary(self.analyzer.get_dictionary()),
+            analyzer: self.analyzer.summary(),
+        }
     }
 
     fn query(&self, 
-            phrase_str: &str, 
-            fn_query: fn(&PositionList, &Vec<&str>) -> Vec<DocScore>) -> Vec<&String>{
-        let phrase_normalized = normalize(&phrase_str);
-        let phrase_tokens = parse_tokens(&phrase_normalized);
-        let doc_scores = fn_query(&self.index, &phrase_tokens);
+        phrase_str: &str,
+        ignore_non_exist_term: bool,
+        fn_query: fn(&PositionList, &Vec<TermId>) -> Vec<DocScore>) -> Vec<&String>{
+        let (term_ids, unknown_terms) = self.analyzer.parse(phrase_str);
         let mut docs = vec![];
+        if term_ids.len() == 0 {
+            return docs;
+        }
+        if !ignore_non_exist_term && unknown_terms.len() > 0 {
+            return docs;
+        }
+        let doc_scores = fn_query(&self.index, &term_ids);
         for doc in doc_scores {
             if let Some(docname) = self.doc_info.get(&doc.docid){
                 docs.push(docname);
             }
-        }
+        }    
         docs
     }
 
     pub fn search_phrase(&self, phrase_str: &str) -> Vec<&String>{
-        self.query(phrase_str, PositionList::search_phrase)
+        self.query(phrase_str, false, PositionList::search_phrase)
     }
 
     pub fn rank_cosine(&self, query_str: &str) -> Vec<&String> {
-        self.query(query_str, PositionList::rank_cosine)
+        self.query(query_str, true, PositionList::rank_cosine)
     }
 
     pub fn rank_bm25(&self, query_str: &str) -> Vec<&String> {
-        self.query(query_str, PositionList::rank_bm25)
+        self.query(query_str, true, PositionList::rank_bm25)
     }
 
 }

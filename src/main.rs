@@ -148,17 +148,17 @@ fn command_rank_cosine(index_dir: &str, phrase_option: &Option<String>) -> io::R
 }
 
 fn info(engine: &Engine) {
-    let idx_info = engine.info();
+    let summary = engine.summary();
     println!("===Index===");
-    println!("total document: {}", idx_info.document_count);
-    println!("total length: {}", idx_info.total_document_length);
-    println!("average length: {}", idx_info.average_document_length);
-    println!("total term count: {}", idx_info.dic_info.term_count);
+    println!("total document: {}", summary.index.document_count);
+    println!("total length: {}", summary.index.total_document_length);
+    println!("average length: {}", summary.index.average_document_length);
+    println!("total term count: {}", summary.analyzer.dict.term_count);
     let display_num = 100;
     println!("===Top {} terms===", display_num);
     let mut sum_so_far:f32 = 0.0;
-    for (i, (_, term, count)) in idx_info.term_freq.into_iter().enumerate().take(display_num){
-        let freq = count as f32 * 100.0 / idx_info.total_document_length as f32;
+    for (i, (_, term, count)) in summary.index.term_freq.into_iter().enumerate().take(display_num){
+        let freq = count as f32 * 100.0 / summary.index.total_document_length as f32;
         sum_so_far += freq;
         println!("{:5}: {}=>{} ({:.3}%, {:.3}%)", i+1, term, count, freq, sum_so_far);
     }
@@ -192,7 +192,7 @@ fn command_rank_bm25(index_dir: &str, phrase_option: &Option<String>) -> io::Res
             let stdin = io::stdin();
             for line_result in stdin.lock().lines() {
                 let line = line_result?;
-                rank_cosine(&engine, &line);
+                rank_bm25(&engine, &line);
             }    
         }
     }
