@@ -1,4 +1,4 @@
-use super::dictionary::{Dictionary, DictionarySummary};
+use super::dictionary::{Dictionary, DictionaryStats};
 use super::tokenizer::{normalize, parse_tokens};
 use super::index::TermId;
 use serde::{Serialize, Deserialize};
@@ -8,8 +8,8 @@ pub struct Analyzer {
     dict: Dictionary,
 }
 
-pub struct AnalyzerSummary {
-    pub dict: DictionarySummary,
+pub struct AnalyzerStats {
+    pub dict: DictionaryStats,
 }
 
 impl Analyzer {
@@ -35,9 +35,9 @@ impl Analyzer {
         self.dict.get_ids(&tokens)
     }
 
-    pub fn summary(&self) -> AnalyzerSummary {
-        AnalyzerSummary{
-            dict: self.dict.summary(),
+    pub fn stats(&self) -> AnalyzerStats {
+        AnalyzerStats{
+            dict: self.dict.stats(),
         }
     }
 

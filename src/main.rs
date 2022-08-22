@@ -1,7 +1,7 @@
 pub mod ircore;
 use std::path::Path;
 use ircore::engine::Engine;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::io::{self, BufRead};
 
 #[derive(Parser)]
@@ -26,24 +26,23 @@ enum Commands {
         /// Corpus directory
         corpus_dir: String,
     },
-    /// Phrase search
-    SearchPhrase {
+    /// Search
+    Search {
         #[clap(value_parser)]
         /// search phrase
         phrase: Option<String>,
+        /// ranking algorithm
+        #[clap(short, long, value_enum)]
+        ranking: Option<RankingAlghrithm>,
+
     },
-    /// Vector space model, ranke cosine
-    RankCosine {
-        #[clap(value_parser)]
-        /// search phrase
-        phrase: Option<String>,
-    },
-    /// Probabilistic model: BM25
-    RankBM25 {
-        #[clap(value_parser)]
-        /// search phrase
-        phrase: Option<String>,
-    }
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+enum RankingAlghrithm {
+    ExactMatch,
+    VectorSpaceModel,
+    OkapiBM25,
 }
 
 fn main() {
@@ -57,21 +56,26 @@ fn main() {
                 Ok(count) => println!("{} documents indexed", count),
                 Err(_) => eprintln!("error in processing")
             },
-        Some(Commands::SearchPhrase{ phrase }) =>
-            match command_search_phrase(&cli.index_dir, phrase){
-                Ok(_) => println!(""),
-                Err(_) => eprintln!("error in search phrase"),
-            },
-        Some(Commands::RankCosine{ phrase }) =>
-            match command_rank_cosine(&cli.index_dir, phrase){
-                Ok(_) => println!(""),
-                Err(_) => eprintln!("error in rank cosine"),
-            },
-        Some(Commands::RankBM25{ phrase }) =>
-            match command_rank_bm25(&cli.index_dir, phrase){
-                Ok(_) => println!(""),
-                Err(_) => eprintln!("error in BM25"),
-            },
+        Some(Commands::Search {phrase, ranking}) => {
+            match ranking {
+                Some(RankingAlghrithm::ExactMatch) => match command_search_phrase(&cli.index_dir, phrase){
+                    Ok(_) => println!(""),
+                    Err(_) => eprintln!("error in exact match"),
+                },
+                Some(RankingAlghrithm::VectorSpaceModel) => match command_rank_cosine(&cli.index_dir, phrase){
+                    Ok(_) => println!(""),
+                    Err(_) => eprintln!("error in vector space model"),
+                },
+                Some(RankingAlghrithm::OkapiBM25) => match command_rank_bm25(&cli.index_dir, phrase){
+                    Ok(_) => println!(""),
+                    Err(_) => eprintln!("error in BM25"),
+                },
+                None => match command_rank_bm25(&cli.index_dir, phrase){
+                    Ok(_) => println!(""),
+                    Err(_) => eprintln!("error in BM25"),
+                },    
+            }
+        },
         None => {
             command_load_index(&cli.index_dir);
         }
@@ -85,7 +89,7 @@ fn command_build_index(corpus_dir: &str, index_dir: &str) -> io::Result<usize>{
     if let Ok(count_res) = engine.build_index_from(&Path::new(corpus_dir)){
         count = count_res;
         engine.save_to(&Path::new(index_dir))?;
-        info(&engine);
+        stats(&engine);
     }
     Ok(count)
 }
@@ -127,7 +131,7 @@ fn search_phrase(engine: &Engine, phrase: &str){
 }
 fn command_load_index(index_dir: &str){
     let engine = Engine::load_from(Path::new(index_dir));
-    info(&engine);
+    stats(&engine);
 }
 
 fn command_rank_cosine(index_dir: &str, phrase_option: &Option<String>) -> io::Result<()> {
@@ -147,8 +151,8 @@ fn command_rank_cosine(index_dir: &str, phrase_option: &Option<String>) -> io::R
     Ok(())
 }
 
-fn info(engine: &Engine) {
-    let summary = engine.summary();
+fn stats(engine: &Engine) {
+    let summary = engine.stats();
     println!("===Index===");
     println!("total document: {}", summary.index.document_count);
     println!("total length: {}", summary.index.total_document_length);

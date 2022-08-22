@@ -9,7 +9,7 @@ pub struct Dictionary {
     next_id: TermId,
 }
 
-pub struct DictionarySummary {
+pub struct DictionaryStats {
     pub term_count: u32,
 }
 
@@ -76,8 +76,8 @@ impl Dictionary {
         self.term_ids.len()
     }
 
-    pub fn summary(&self) -> DictionarySummary {
-        DictionarySummary{
+    pub fn stats(&self) -> DictionaryStats {
+        DictionaryStats{
             term_count: self.term_ids.len() as u32,
         }
     }

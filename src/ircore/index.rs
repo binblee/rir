@@ -35,7 +35,7 @@ pub struct PositionList {
     tf_idf_matrix: Vec<SparseVector>,
 }
 
-pub struct IndexSummary {
+pub struct IndexStats {
     // total document length in tokens
     pub total_document_length: u32,
     // average document length
@@ -69,8 +69,8 @@ pub trait SchemaDependIndex {
     fn rank_cosine(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
     // RM25
     fn rank_bm25(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
-    // Summary
-    fn summary(&self, dict: &Dictionary) -> IndexSummary;
+    // Statistics
+    fn stats(&self, dict: &Dictionary) -> IndexStats;
     // helper functions
     fn binary_search(
         positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
@@ -148,8 +148,8 @@ impl SchemaDependIndex for PositionList {
     }
 
     // Summary
-    fn summary(&self, dict: &Dictionary) -> IndexSummary {
-        let mut idx_info = IndexSummary {
+    fn stats(&self, dict: &Dictionary) -> IndexStats {
+        let mut idx_info = IndexStats {
             total_document_length: self.total_document_length,
             average_document_length: self.average_document_length,
             document_count: self.document_count,

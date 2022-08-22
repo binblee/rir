@@ -1,5 +1,5 @@
-use super::index::{SchemaDependIndex, PositionList, DocId, DocScore, IndexSummary, TermId};
-use super::analyzer::{Analyzer, AnalyzerSummary};
+use super::index::{SchemaDependIndex, PositionList, DocId, DocScore, IndexStats, TermId};
+use super::analyzer::{Analyzer, AnalyzerStats};
 use std::fs::{self, File};
 use std::path::Path;
 use std::collections::{HashMap};
@@ -14,9 +14,9 @@ pub struct Engine {
     doc_info: HashMap<DocId, String>,
 }
 
-pub struct Summary {
-    pub index: IndexSummary,
-    pub analyzer: AnalyzerSummary,
+pub struct Stats {
+    pub index: IndexStats,
+    pub analyzer: AnalyzerStats,
 }
 
 impl Engine {
@@ -89,10 +89,10 @@ impl Engine {
         Ok(())
     }
 
-    pub fn summary(&self) -> Summary {
-        Summary{
-            index: self.index.summary(self.analyzer.get_dictionary()),
-            analyzer: self.analyzer.summary(),
+    pub fn stats(&self) -> Stats {
+        Stats{
+            index: self.index.stats(self.analyzer.get_dictionary()),
+            analyzer: self.analyzer.stats(),
         }
     }
 
@@ -121,12 +121,12 @@ impl Engine {
         self.query(phrase_str, false, PositionList::search_phrase)
     }
 
-    pub fn rank_cosine(&self, query_str: &str) -> Vec<&String> {
-        self.query(query_str, true, PositionList::rank_cosine)
+    pub fn rank_cosine(&self, phrase_str: &str) -> Vec<&String> {
+        self.query(phrase_str, true, PositionList::rank_cosine)
     }
 
-    pub fn rank_bm25(&self, query_str: &str) -> Vec<&String> {
-        self.query(query_str, true, PositionList::rank_bm25)
+    pub fn rank_bm25(&self, phrase_str: &str) -> Vec<&String> {
+        self.query(phrase_str, true, PositionList::rank_bm25)
     }
 
 }
