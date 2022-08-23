@@ -3,6 +3,7 @@ use std::path::Path;
 use ircore::engine::Engine;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::io::{self, BufRead};
+use ircore::common::RankingAlgorithm;
 
 #[derive(Parser)]
 #[derive(Debug)]
@@ -33,13 +34,13 @@ enum Commands {
         phrase: Option<String>,
         /// ranking algorithm
         #[clap(short, long, value_enum)]
-        ranking: Option<RankingAlghrithm>,
+        ranking: Option<SelectRankingAlgorithm>,
 
     },
 }
 
 #[derive(Debug, Clone, ValueEnum)]
-enum RankingAlghrithm {
+enum SelectRankingAlgorithm {
     ExactMatch,
     VectorSpaceModel,
     OkapiBM25,
@@ -56,63 +57,40 @@ fn main() {
                 Ok(count) => println!("{} documents indexed", count),
                 Err(_) => eprintln!("error in processing")
             },
-        Some(Commands::Search {phrase, ranking}) => {
-            match ranking {
-                Some(RankingAlghrithm::ExactMatch) => match command_search_phrase(&cli.index_dir, phrase){
-                    Ok(_) => println!(""),
-                    Err(_) => eprintln!("error in exact match"),
-                },
-                Some(RankingAlghrithm::VectorSpaceModel) => match command_rank_cosine(&cli.index_dir, phrase){
-                    Ok(_) => println!(""),
-                    Err(_) => eprintln!("error in vector space model"),
-                },
-                Some(RankingAlghrithm::OkapiBM25) => match command_rank_bm25(&cli.index_dir, phrase){
-                    Ok(_) => println!(""),
-                    Err(_) => eprintln!("error in BM25"),
-                },
-                None => match command_rank_bm25(&cli.index_dir, phrase){
-                    Ok(_) => println!(""),
-                    Err(_) => eprintln!("error in BM25"),
-                },    
-            }
-        },
+        Some(Commands::Search {phrase, ranking}) => 
+            command_search(&cli.index_dir, phrase, ranking)
+        ,
         None => {
             command_load_index(&cli.index_dir);
         }
     }
 }
 
-
-fn command_build_index(corpus_dir: &str, index_dir: &str) -> io::Result<usize>{
-    let mut engine = Engine::new();
-    let mut count = 0;
-    if let Ok(count_res) = engine.build_index_from(&Path::new(corpus_dir)){
-        count = count_res;
-        engine.save_to(&Path::new(index_dir))?;
-        stats(&engine);
-    }
-    Ok(count)
-}
-
-fn command_search_phrase(index_dir: &str, phrase_option: &Option<String>) -> io::Result<()> {
+fn command_search(index_dir: &str, phrase_option: &Option<String>, ranking_option: &Option<SelectRankingAlgorithm>){
     let engine = Engine::load_from(Path::new(index_dir));
     println!("index of {} documents loaded",engine.doc_count());
     match phrase_option {
-        Some(phrase_str) => search_phrase(&engine, &phrase_str),
+        Some(phrase_str) => exec_query(&engine, &phrase_str, ranking_option),
         None => {
             println!("input phrase");
             let stdin = io::stdin();
             for line_result in stdin.lock().lines() {
-                let line = line_result?;
-                search_phrase(&engine, &line);
+                let line = line_result.unwrap();
+                exec_query(&engine, &line, ranking_option);
             }    
         }
     }
-    Ok(())
 }
 
-fn search_phrase(engine: &Engine, phrase: &str){
-    let result = engine.search_phrase(phrase);
+fn exec_query(engine: &Engine, phrase: &str, ranking_option: &Option<SelectRankingAlgorithm>){
+    let ranking;
+    match ranking_option {
+        Some(SelectRankingAlgorithm::ExactMatch) => ranking = RankingAlgorithm::ExactMatch,
+        Some(SelectRankingAlgorithm::VectorSpaceModel) => ranking = RankingAlgorithm::VectorSpaceModel,
+        Some(SelectRankingAlgorithm::OkapiBM25) => ranking = RankingAlgorithm::OkapiBM25,
+        None => ranking = RankingAlgorithm::Default,
+    }
+    let result = engine.exec_query(phrase, ranking);
     let result_len = result.len();
     if result_len > 0 {
         println!("{} results", result_len);
@@ -129,26 +107,21 @@ fn search_phrase(engine: &Engine, phrase: &str){
     }            
 
 }
+
+fn command_build_index(corpus_dir: &str, index_dir: &str) -> io::Result<usize>{
+    let mut engine = Engine::new();
+    let mut count = 0;
+    if let Ok(count_res) = engine.build_index_from(&Path::new(corpus_dir)){
+        count = count_res;
+        engine.save_to(&Path::new(index_dir))?;
+        stats(&engine);
+    }
+    Ok(count)
+}
+
 fn command_load_index(index_dir: &str){
     let engine = Engine::load_from(Path::new(index_dir));
     stats(&engine);
-}
-
-fn command_rank_cosine(index_dir: &str, phrase_option: &Option<String>) -> io::Result<()> {
-    let engine = Engine::load_from(Path::new(index_dir));
-    println!("index of {} documents loaded",engine.doc_count());
-    match phrase_option {
-        Some(phrase_str) => rank_cosine(&engine, &phrase_str),
-        None => {
-            println!("rank cosine, input phrase");
-            let stdin = io::stdin();
-            for line_result in stdin.lock().lines() {
-                let line = line_result?;
-                rank_cosine(&engine, &line);
-            }    
-        }
-    }
-    Ok(())
 }
 
 fn stats(engine: &Engine) {
@@ -165,59 +138,6 @@ fn stats(engine: &Engine) {
         let freq = count as f32 * 100.0 / summary.index.total_document_length as f32;
         sum_so_far += freq;
         println!("{:5}: {}=>{} ({:.3}%, {:.3}%)", i+1, term, count, freq, sum_so_far);
-    }
-}
-
-fn rank_cosine(engine: &Engine, phrase: &str){
-    let result = engine.rank_cosine(phrase);
-    let result_len = result.len();
-    if result_len > 0 {
-        println!("{} results", result_len);
-        let mut display = result_len;
-        if result_len > 10 {
-            println!("top 10:");
-            display = 10;
-        }
-        for (i,doc) in result.into_iter().enumerate().take(display){
-            println!("{}:{}", i+1, doc);
-        }
-    }else{
-        println!("no result");
-    }
-}
-
-fn command_rank_bm25(index_dir: &str, phrase_option: &Option<String>) -> io::Result<()> {
-    let engine = Engine::load_from(Path::new(index_dir));
-    println!("index of {} documents loaded",engine.doc_count());
-    match phrase_option {
-        Some(phrase_str) => rank_bm25(&engine, &phrase_str),
-        None => {
-            println!("rank BM25, input phrase");
-            let stdin = io::stdin();
-            for line_result in stdin.lock().lines() {
-                let line = line_result?;
-                rank_bm25(&engine, &line);
-            }    
-        }
-    }
-    Ok(())
-}
-
-fn rank_bm25(engine: &Engine, phrase: &str){
-    let result = engine.rank_bm25(phrase);
-    let result_len = result.len();
-    if result_len > 0 {
-        println!("{} results", result_len);
-        let mut display = result_len;
-        if result_len > 10 {
-            println!("top 10:");
-            display = 10;
-        }
-        for (i,doc) in result.into_iter().enumerate().take(display){
-            println!("{}:{}", i+1, doc);
-        }
-    }else{
-        println!("no result");
     }
 }
 

@@ -1,4 +1,5 @@
-use super::index::{SchemaDependIndex, PositionList, DocId, DocScore, IndexStats, TermId};
+use super::index::{SchemaDependIndex, PositionList, IndexStats};
+use super::common::{DocId, RankingAlgorithm};
 use super::analyzer::{Analyzer, AnalyzerStats};
 use std::fs::{self, File};
 use std::path::Path;
@@ -6,12 +7,15 @@ use std::collections::{HashMap};
 use serde::{Serialize, Deserialize};
 use bincode;
 use std::io::{self, Write, Read};
+use super::doc::text::{FileLoader};
+use super::doc::Document;
+use super::query::Query;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Engine {
     index: PositionList,
     analyzer: Analyzer,
-    doc_info: HashMap<DocId, String>,
+    doc_meta: HashMap<DocId, String>,
 }
 
 pub struct Stats {
@@ -24,12 +28,12 @@ impl Engine {
         Engine{
             index: PositionList::new(),
             analyzer: Analyzer::new(),
-            doc_info: HashMap::new(),
+            doc_meta: HashMap::new(),
         }
     }
 
     pub fn doc_count(&self) -> usize {
-        self.doc_info.len()
+        self.doc_meta.len()
     }
 
     pub fn load_from(path: &Path) -> Self {
@@ -53,12 +57,10 @@ impl Engine {
 
     pub fn build_index(&mut self, path: &Path) -> Result<usize, ()> {
         if path.is_file(){
-            if let Ok(content) = fs::read_to_string(path){
-                let term_ids = self.analyzer.analyze(&content);
-                let id = self.index.build_from(&term_ids);
-                if let Some(path_str) = path.to_str(){
-                    self.doc_info.insert(id, path_str.to_owned());
-                }
+            let doc = FileLoader::load(path);
+            if doc.is_valid(){
+                let res = self.add_document(&doc);
+                assert_eq!(res, Ok(()));
             }
         }else if path.is_dir(){
             println!("indexing {}...", path.display());
@@ -69,11 +71,18 @@ impl Engine {
                 }
             }    
         }
-        Ok(self.doc_info.len())    
+        Ok(self.doc_count())    
+    }
+
+    fn add_document(&mut self, doc: &dyn Document) -> Result<(),()> {
+        let term_ids = self.analyzer.analyze(doc.get_content());
+        let id = self.index.build_from(&term_ids);
+        self.doc_meta.insert(id, doc.get_path().to_owned());
+        Ok(())
     }
 
     pub fn compute_tf_idf(&mut self) -> Result<(),()> {
-        if self.doc_info.len() == 0 {
+        if self.doc_meta.len() == 0 {
             return Err(());
         }
         self.index.compute_tf_idf()
@@ -96,37 +105,25 @@ impl Engine {
         }
     }
 
-    fn query(&self, 
+    pub fn exec_query(&self, 
         phrase_str: &str,
-        ignore_non_exist_term: bool,
-        fn_query: fn(&PositionList, &Vec<TermId>) -> Vec<DocScore>) -> Vec<&String>{
-        let (term_ids, unknown_terms) = self.analyzer.parse(phrase_str);
+        ranking: RankingAlgorithm,
+        ) -> Vec<&String>{
+        
+        let ignore_non_exist_term: bool;
+        match ranking {
+            RankingAlgorithm::ExactMatch => ignore_non_exist_term = false,
+            _ => ignore_non_exist_term = true,
+        }
+        let term_ids = Query::parse(phrase_str, ignore_non_exist_term, &self.analyzer);
         let mut docs = vec![];
-        if term_ids.len() == 0 {
-            return docs;
-        }
-        if !ignore_non_exist_term && unknown_terms.len() > 0 {
-            return docs;
-        }
-        let doc_scores = fn_query(&self.index, &term_ids);
+        let doc_scores = self.index.query(&term_ids, ranking);
         for doc in doc_scores {
-            if let Some(docname) = self.doc_info.get(&doc.docid){
-                docs.push(docname);
+            if let Some(doc_path) = self.doc_meta.get(&doc.docid){
+                docs.push(doc_path);
             }
         }    
         docs
-    }
-
-    pub fn search_phrase(&self, phrase_str: &str) -> Vec<&String>{
-        self.query(phrase_str, false, PositionList::search_phrase)
-    }
-
-    pub fn rank_cosine(&self, phrase_str: &str) -> Vec<&String> {
-        self.query(phrase_str, true, PositionList::rank_cosine)
-    }
-
-    pub fn rank_bm25(&self, phrase_str: &str) -> Vec<&String> {
-        self.query(phrase_str, true, PositionList::rank_bm25)
     }
 
 }
@@ -134,87 +131,109 @@ impl Engine {
 #[test]
 fn test_build_index() {
     let mut engine = Engine::new();
-    let res = engine.build_index(&Path::new("./samples"));
+    let res = engine.build_index(&Path::new("./sample_corpus"));
     assert_eq!(res, Ok(5));
-}
-
-#[test]
-fn test_find_phrase() {
-    let mut engine = Engine::new();
-    let res = engine.build_index(&Path::new("./samples"));
-    assert_eq!(res, Ok(5));
-    let mut docs = engine.search_phrase("Quarrel sir");
-    use std::collections::HashSet;
-    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([&"./samples/a/1.txt".to_string(), &"./samples/a/2.txt".to_string()]));
-    docs = engine.search_phrase("sir");
-    assert_eq!(docs.len(), 4);
-
-    docs = engine.search_phrase("non-exist");
-    assert_eq!(docs.len(), 0);
-
-    docs = engine.search_phrase("Sir non-exist");
-    assert_eq!(docs.len(), 0);
-
-    docs = engine.search_phrase("Sir");
-    assert_eq!(docs.len(), 4);
-
 }
 
 #[test]
 fn test_save_and_load_index() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./samples"));
+    let res = engine.build_index_from(&Path::new("./sample_corpus"));
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/samples.idx");
+    let index_path = &Path::new(".rir/sample_corpus.idx");
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
-    let docs = loaded_engine.search_phrase("Quarrel sir");
+    let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::ExactMatch);
     use std::collections::HashSet;
     let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([&"./samples/a/1.txt".to_string(), &"./samples/a/2.txt".to_string()]));
+    assert_eq!(doc_set, HashSet::from([&"./sample_corpus/a/1.txt".to_string(), &"./sample_corpus/a/2.txt".to_string()]));
 }
 
 #[test]
-fn test_rank_cosine() {
+fn test_search_phrase() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./samples"));
+    let res = engine.build_index(&Path::new("./sample_corpus"));
+    assert_eq!(res, Ok(5));
+    let mut docs = engine.exec_query("Quarrel sir", RankingAlgorithm::ExactMatch);
+    use std::collections::HashSet;
+    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+    assert_eq!(doc_set, HashSet::from([&"./sample_corpus/a/1.txt".to_string(), &"./sample_corpus/a/2.txt".to_string()]));
+    docs = engine.exec_query("sir", RankingAlgorithm::ExactMatch);
+    assert_eq!(docs.len(), 4);
+
+    docs = engine.exec_query("non-exist", RankingAlgorithm::ExactMatch);
+    assert_eq!(docs.len(), 0);
+
+    docs = engine.exec_query("Sir non-exist", RankingAlgorithm::ExactMatch);
+    assert_eq!(docs.len(), 0);
+
+    docs = engine.exec_query("Sir", RankingAlgorithm::ExactMatch);
+    assert_eq!(docs.len(), 4);
+
+}
+
+#[test]
+fn test_vector_space_model() {
+    let mut engine = Engine::new();
+    let res = engine.build_index_from(&Path::new("./sample_corpus"));
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/samples2.idx");
+    let index_path = &Path::new(".rir/sample_corpus2.idx");
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
-    let docs = loaded_engine.rank_cosine("Quarrel sir");
+    let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::VectorSpaceModel);
     use std::collections::HashSet;
     let doc_set: HashSet<&String> = HashSet::from_iter(docs);
     assert_eq!(doc_set, HashSet::from([
-            &"./samples/a/2.txt".to_string(), 
-            &"./samples/a/1.txt".to_string(),
-            &"./samples/5.txt".to_string(), 
-            &"./samples/b/3.txt".to_string(),
+            &"./sample_corpus/a/2.txt".to_string(), 
+            &"./sample_corpus/a/1.txt".to_string(),
+            &"./sample_corpus/5.txt".to_string(), 
+            &"./sample_corpus/b/3.txt".to_string(),
             ]));
 }
 
 #[test]
 fn test_rank_bm25() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./samples"));
+    let res = engine.build_index_from(&Path::new("./sample_corpus"));
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/samples3.idx");
+    let index_path = &Path::new(".rir/sample_corpus3.idx");
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
-    let docs = loaded_engine.rank_bm25("Quarrel sir");
+    let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::OkapiBM25);
     use std::collections::HashSet;
     let doc_set: HashSet<&String> = HashSet::from_iter(docs);
     assert_eq!(doc_set, HashSet::from([
-            &"./samples/a/2.txt".to_string(), 
-            &"./samples/a/1.txt".to_string(),
-            &"./samples/5.txt".to_string(), 
-            &"./samples/b/3.txt".to_string(),
+            &"./sample_corpus/a/2.txt".to_string(), 
+            &"./sample_corpus/a/1.txt".to_string(),
+            &"./sample_corpus/5.txt".to_string(), 
+            &"./sample_corpus/b/3.txt".to_string(),
             ]));
+}
+
+#[test]
+fn test_rank_default() {
+    let mut engine = Engine::new();
+    let res = engine.build_index_from(&Path::new("./sample_corpus"));
+    assert_eq!(res, Ok(5));
+    assert_eq!(engine.doc_count(), 5);
+    let index_path = &Path::new(".rir/sample_corpus3.idx");
+    let _ = engine.save_to(index_path);
+    let loaded_engine = Engine::load_from(index_path);
+    assert_eq!(loaded_engine.doc_count(), 5);
+    let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::Default);
+    use std::collections::HashSet;
+    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+    assert_eq!(doc_set, HashSet::from([
+            &"./sample_corpus/a/2.txt".to_string(), 
+            &"./sample_corpus/a/1.txt".to_string(),
+            &"./sample_corpus/5.txt".to_string(), 
+            &"./sample_corpus/b/3.txt".to_string(),
+            ]));
+
 }

@@ -3,10 +3,8 @@ use std::cmp::Reverse;
 use serde::{Serialize, Deserialize};
 use super::sparse_vector::{SparseVector, SparseVectorOp};
 use super::dictionary::Dictionary;
+use super::common::{DocId, TermId, TermOffset, RankingAlgorithm};
 
-pub type TermId = u32;
-pub type DocId = u32;
-pub type TermOffset = u32;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Posting {
@@ -71,6 +69,8 @@ pub trait SchemaDependIndex {
     fn rank_bm25(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
     // Statistics
     fn stats(&self, dict: &Dictionary) -> IndexStats;
+    // query wrapper
+    fn query(&self, terms: &Vec<TermId>, ranking: RankingAlgorithm) -> Vec<DocScore>;
     // helper functions
     fn binary_search(
         positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
@@ -494,6 +494,23 @@ impl SchemaDependIndex for PositionList {
         scores
     }
 
+    fn query(&self, terms: &Vec<TermId>, ranking: RankingAlgorithm) -> Vec<DocScore> {
+        let docs = vec![];
+        if terms.len() == 0 {
+            return docs;
+        }
+        let scorer: fn(&PositionList, &Vec<TermId>) -> Vec<DocScore>;
+        match ranking {
+            RankingAlgorithm::Default => scorer = PositionList::rank_bm25,
+            RankingAlgorithm::ExactMatch => scorer = PositionList::search_phrase,
+            RankingAlgorithm::VectorSpaceModel => scorer = PositionList::rank_cosine,
+            RankingAlgorithm::OkapiBM25 => scorer = PositionList::rank_bm25,         
+        }
+        let doc_scores = scorer(&self, &terms);
+        doc_scores
+    }
+
+
 
 }
 
@@ -649,7 +666,7 @@ fn test_search_phrase() {
 }
 
 #[test]
-fn test_rank_cosine(){
+fn test_vector_space_model(){
     let mut idx = PositionList::new();
     use super::dictionary::{Dictionary};
     let mut dict = Dictionary::new();

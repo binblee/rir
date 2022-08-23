@@ -1,4 +1,4 @@
-use super::index::TermId;
+use super::common::TermId;
 use std::collections::HashMap;
 
 pub type SparseVector = HashMap<TermId, f32>;

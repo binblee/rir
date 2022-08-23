@@ -1,6 +1,6 @@
 use super::dictionary::{Dictionary, DictionaryStats};
 use super::tokenizer::{normalize, parse_tokens};
-use super::index::TermId;
+use super::common::TermId;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
