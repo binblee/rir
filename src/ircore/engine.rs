@@ -7,8 +7,8 @@ use std::collections::{HashMap};
 use serde::{Serialize, Deserialize};
 use bincode;
 use std::io::{self, Write, Read};
-use super::doc::text::{FileLoader};
-use super::doc::Document;
+use super::document::Document;
+use super::doc::text::TextFileLoader;
 use super::query::Query;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -57,10 +57,11 @@ impl Engine {
 
     pub fn build_index(&mut self, path: &Path) -> Result<usize, ()> {
         if path.is_file(){
-            let doc = FileLoader::load(path);
-            if doc.is_valid(){
+            if let Some(doc) = Document::parse_file(path){
                 let res = self.add_document(&doc);
                 assert_eq!(res, Ok(()));
+            }else{
+                println!("failed to parse file {}", path.to_string_lossy());
             }
         }else if path.is_dir(){
             println!("indexing {}...", path.display());
@@ -74,7 +75,7 @@ impl Engine {
         Ok(self.doc_count())    
     }
 
-    fn add_document(&mut self, doc: &dyn Document) -> Result<(),()> {
+    fn add_document(&mut self, doc: &Document) -> Result<(),()> {
         let term_ids = self.analyzer.analyze(doc.get_content());
         let id = self.index.build_from(&term_ids);
         self.doc_meta.insert(id, doc.get_path().to_owned());
@@ -131,35 +132,35 @@ impl Engine {
 #[test]
 fn test_build_index() {
     let mut engine = Engine::new();
-    let res = engine.build_index(&Path::new("./sample_corpus"));
+    let res = engine.build_index(&Path::new("./sample_corpus/romeo_juliet"));
     assert_eq!(res, Ok(5));
 }
 
 #[test]
 fn test_save_and_load_index() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./sample_corpus"));
+    let res = engine.build_index_from(&Path::new("./sample_corpus/romeo_juliet"));
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/sample_corpus.idx");
+    let index_path = &Path::new(".rir/romeo_juliet1.idx");
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
     let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::ExactMatch);
     use std::collections::HashSet;
     let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([&"./sample_corpus/a/1.txt".to_string(), &"./sample_corpus/a/2.txt".to_string()]));
+    assert_eq!(doc_set, HashSet::from([&"./sample_corpus/romeo_juliet/a/1.txt".to_string(), &"./sample_corpus/romeo_juliet/a/2.txt".to_string()]));
 }
 
 #[test]
 fn test_search_phrase() {
     let mut engine = Engine::new();
-    let res = engine.build_index(&Path::new("./sample_corpus"));
+    let res = engine.build_index(&Path::new("./sample_corpus/romeo_juliet"));
     assert_eq!(res, Ok(5));
     let mut docs = engine.exec_query("Quarrel sir", RankingAlgorithm::ExactMatch);
     use std::collections::HashSet;
     let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([&"./sample_corpus/a/1.txt".to_string(), &"./sample_corpus/a/2.txt".to_string()]));
+    assert_eq!(doc_set, HashSet::from([&"./sample_corpus/romeo_juliet/a/1.txt".to_string(), &"./sample_corpus/romeo_juliet/a/2.txt".to_string()]));
     docs = engine.exec_query("sir", RankingAlgorithm::ExactMatch);
     assert_eq!(docs.len(), 4);
 
@@ -177,10 +178,10 @@ fn test_search_phrase() {
 #[test]
 fn test_vector_space_model() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./sample_corpus"));
+    let res = engine.build_index_from(&Path::new("./sample_corpus/romeo_juliet"));
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/sample_corpus2.idx");
+    let index_path = &Path::new(".rir/romeo_juliet2.idx");
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
@@ -188,20 +189,20 @@ fn test_vector_space_model() {
     use std::collections::HashSet;
     let doc_set: HashSet<&String> = HashSet::from_iter(docs);
     assert_eq!(doc_set, HashSet::from([
-            &"./sample_corpus/a/2.txt".to_string(), 
-            &"./sample_corpus/a/1.txt".to_string(),
-            &"./sample_corpus/5.txt".to_string(), 
-            &"./sample_corpus/b/3.txt".to_string(),
+            &"./sample_corpus/romeo_juliet/a/2.txt".to_string(), 
+            &"./sample_corpus/romeo_juliet/a/1.txt".to_string(),
+            &"./sample_corpus/romeo_juliet/5.txt".to_string(), 
+            &"./sample_corpus/romeo_juliet/b/3.txt".to_string(),
             ]));
 }
 
 #[test]
 fn test_rank_bm25() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./sample_corpus"));
+    let res = engine.build_index_from(&Path::new("./sample_corpus/romeo_juliet"));
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/sample_corpus3.idx");
+    let index_path = &Path::new(".rir/romeo_juliet3.idx");
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
@@ -209,20 +210,20 @@ fn test_rank_bm25() {
     use std::collections::HashSet;
     let doc_set: HashSet<&String> = HashSet::from_iter(docs);
     assert_eq!(doc_set, HashSet::from([
-            &"./sample_corpus/a/2.txt".to_string(), 
-            &"./sample_corpus/a/1.txt".to_string(),
-            &"./sample_corpus/5.txt".to_string(), 
-            &"./sample_corpus/b/3.txt".to_string(),
+            &"./sample_corpus/romeo_juliet/a/2.txt".to_string(), 
+            &"./sample_corpus/romeo_juliet/a/1.txt".to_string(),
+            &"./sample_corpus/romeo_juliet/5.txt".to_string(), 
+            &"./sample_corpus/romeo_juliet/b/3.txt".to_string(),
             ]));
 }
 
 #[test]
 fn test_rank_default() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./sample_corpus"));
+    let res = engine.build_index_from(&Path::new("./sample_corpus/romeo_juliet"));
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/sample_corpus3.idx");
+    let index_path = &Path::new(".rir/romeo_juliet4.idx");
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
@@ -230,10 +231,10 @@ fn test_rank_default() {
     use std::collections::HashSet;
     let doc_set: HashSet<&String> = HashSet::from_iter(docs);
     assert_eq!(doc_set, HashSet::from([
-            &"./sample_corpus/a/2.txt".to_string(), 
-            &"./sample_corpus/a/1.txt".to_string(),
-            &"./sample_corpus/5.txt".to_string(), 
-            &"./sample_corpus/b/3.txt".to_string(),
+            &"./sample_corpus/romeo_juliet/a/2.txt".to_string(), 
+            &"./sample_corpus/romeo_juliet/a/1.txt".to_string(),
+            &"./sample_corpus/romeo_juliet/5.txt".to_string(), 
+            &"./sample_corpus/romeo_juliet/b/3.txt".to_string(),
             ]));
 
 }

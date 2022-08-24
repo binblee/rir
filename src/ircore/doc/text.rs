@@ -1,60 +1,37 @@
 use std::fs::{self};
 use std::path::Path;
+use super::super::document::Document;
 
-pub struct PlainTextDoc {
-    content: String,
-    path: String,
-    valid: bool,
+pub trait TextFileLoader {
+    fn parse_file(path: &Path) -> Option<Document>;
 }
 
-impl PlainTextDoc {
-    pub fn parse_file(path: &Path) -> Self {
+impl TextFileLoader for Document {
+    fn parse_file(path: &Path) -> Option<Document> {
         if path.is_file() {
             if let Ok(c) = fs::read_to_string(path) {
-                return PlainTextDoc {
-                    content: c,
-                    path: path.to_string_lossy().to_string(),
-                    valid: true,
-                } 
+                return Some(Document::new(c, path.to_string_lossy().to_string()));
             }
         }
-        PlainTextDoc {
-            content: String::default(),
-            path: String::default(),
-            valid: false,
-        }
-    }
-
-    pub fn is_valid(&self) -> bool {
-        self.valid
+        None
     }
 }
 
-use super::Document;
-impl Document for PlainTextDoc {
-    fn get_content(&self) -> &str {
-        &self.content
-    }
-
-    fn get_path(&self) -> &str {
-        &self.path
-    }
-}
 
 #[test]
 fn test_plain_text() {
-    let mut doc = PlainTextDoc::parse_file(Path::new("./sample_corpus/a/1.txt"));
-    assert!(doc.is_valid());
-    assert_eq!(doc.get_content(), "Do you quarrel, sir?");
-    doc = PlainTextDoc::parse_file(Path::new("./sample_corpus/non-exist.txt"));
-    assert!(!doc.is_valid());
+    if let Some(doc) = Document::parse_file(Path::new("./sample_corpus/romeo_juliet/a/1.txt")){
+        assert_eq!(doc.get_content(), "Do you quarrel, sir?");
+        assert_eq!(doc.get_path(), "./sample_corpus/romeo_juliet/a/1.txt");
+    }else{
+        assert!(false);
+    }
+    let doc = Document::parse_file(Path::new("./sample_corpus/romeo_juliet/non-exist.txt"));
+    assert_eq!(doc, None);
 }
 
-pub struct FileLoader {
-}
-
-impl FileLoader {
-    pub fn load(path: &Path) -> PlainTextDoc {
-        PlainTextDoc::parse_file(path)
-    } 
+#[test]
+fn test_load_file_encoding_iso8859() {
+    let doc = Document::parse_file(Path::new("/Users/libin/Code/github.com/binblee/sir/20news-18828/comp.windows.x/67305"));
+    assert_eq!(doc, None)
 }
