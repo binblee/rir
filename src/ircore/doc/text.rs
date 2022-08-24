@@ -1,6 +1,6 @@
 use std::fs::{self};
 use std::path::Path;
-use super::super::document::Document;
+use super::Document;
 use encoding_rs::{ISO_8859_2};
 use encoding_rs_io::{DecodeReaderBytesBuilder};
 use std::io::Read;

@@ -7,4 +7,3 @@ pub mod analyzer;
 pub mod common;
 pub mod doc;
 pub mod query;
-pub mod document;

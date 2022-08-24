@@ -148,7 +148,7 @@ fn stats(engine: &Engine) {
 
 fn command_sand_box() {
     use ircore::doc::text::TextFileLoader;
-    use ircore::document::Document;
+    use ircore::doc::Document;
     let filepath = Path::new("./sample_corpus/non_utf8_encoding/103700");
     match Document::parse_file(filepath){
         Ok(content) => println!("{:?}", content),

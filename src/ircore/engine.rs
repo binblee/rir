@@ -7,7 +7,7 @@ use std::collections::{HashMap};
 use serde::{Serialize, Deserialize};
 use bincode;
 use std::io::{self, Write, Read};
-use super::document::Document;
+use super::doc::Document;
 use super::doc::text::TextFileLoader;
 use super::query::Query;
 
