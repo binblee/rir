@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::cmp::Reverse;
 use serde::{Serialize, Deserialize};
-use super::sparse_vector::{SparseVector, SparseVectorOp};
+use super::utils::sparse_vector::{SparseVector, SparseVectorOp};
 use super::dictionary::Dictionary;
 use super::common::{DocId, TermId, TermOffset, RankingAlgorithm};
 
