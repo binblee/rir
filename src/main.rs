@@ -37,6 +37,8 @@ enum Commands {
         ranking: Option<SelectRankingAlgorithm>,
 
     },
+    /// Playgound for try sth new
+    SandBox,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -60,6 +62,9 @@ fn main() {
         Some(Commands::Search {phrase, ranking}) => 
             command_search(&cli.index_dir, phrase, ranking)
         ,
+        Some(Commands::SandBox) => {
+            command_sand_box();
+        }
         None => {
             command_load_index(&cli.index_dir);
         }
@@ -141,3 +146,17 @@ fn stats(engine: &Engine) {
     }
 }
 
+fn command_sand_box() {
+    use ircore::doc::text::TextFileLoader;
+    use ircore::document::Document;
+    let filepath = Path::new("./sample_corpus/non_utf8_encoding/103700");
+    match Document::parse_file(filepath){
+        Ok(content) => println!("{:?}", content),
+        Err(e) => println!("{:?}", e),
+    }
+    let filepath = Path::new("./sample_corpus/non_utf8_encoding/67305");
+    match Document::parse_file(filepath){
+        Ok(content) => println!("{:?}", content),
+        Err(e) => println!("{:?}", e),
+    }
+}

@@ -57,15 +57,18 @@ impl Engine {
 
     pub fn build_index(&mut self, path: &Path) -> Result<usize, ()> {
         if path.is_file(){
-            if let Some(doc) = Document::parse_file(path){
-                let res = self.add_document(&doc);
-                assert_eq!(res, Ok(()));
-            }else{
-                println!("failed to parse file {}", path.to_string_lossy());
+            match Document::parse_file(path){
+                Ok(doc) => {
+                    let res = self.add_document(&doc);
+                    assert_eq!(res, Ok(()));
+                },
+                Err(e) => {
+                    println!("failed to parse file {}, error: {}", path.to_string_lossy(), e);
+                }
             }
         }else if path.is_dir(){
             println!("indexing {}...", path.display());
-            for entry_result in path.read_dir().expect(&format!("read dir {} failed",path.display())) {
+            for entry_result in path.read_dir().expect(&format!("read dir {} failed", path.display())) {
                 if let Ok(entry) = entry_result{
                     let entry_path = entry.path();
                     self.build_index(&entry_path)?;    
