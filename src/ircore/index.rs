@@ -47,6 +47,8 @@ pub trait SchemaDependIndex {
     fn new() -> Self;
     fn build_from(&mut self, term_ids: &Vec<TermId>) -> DocId;
     fn next_doc_id(&mut self) -> DocId;
+    // get: number of term occurences in whole collection
+    fn get_term_occurences_num(&self, term: TermId) -> u32;
     // docs contain the term
     fn docs(&self, term_id: TermId) -> Option<HashSet<DocId>>; 
     // docs contain all terms
@@ -65,8 +67,10 @@ pub trait SchemaDependIndex {
     // TF-IDF compute
     fn compute_tf_idf(&mut self) -> Result<(),()>;
     fn rank_cosine(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
-    // RM25
+    // BM25
     fn rank_bm25(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
+    // LMD
+    fn rank_lmd(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
     // Statistics
     fn stats(&self, dict: &Dictionary) -> IndexStats;
     // query wrapper
@@ -98,6 +102,15 @@ impl SchemaDependIndex for PositionList {
             tf_idf_matrix: vec![SparseVector::new()],
         }
     }
+
+    fn get_term_occurences_num(&self, term: TermId) -> u32{
+        if let Some(term_postings_list) = self.postings_lists.get(&term){
+            let occ_num = term_postings_list.into_iter().fold(0u32, |sum, posting| sum + posting.term_frequency);
+            return occ_num;
+        }
+        0
+    }
+
 
     fn next_doc_id(&mut self) -> DocId {
         self.next_doc_id += 1;
@@ -494,6 +507,51 @@ impl SchemaDependIndex for PositionList {
         scores
     }
 
+    // LMD - language modeling with Dirichlet smoothing
+    // for all term t: sum(qt * log(1 + ftd * N / lt)) - n * log(1 + ld / lavg)
+    //   qt: query term frequency
+    //   ftd: inverted term document frequency, document_length[doc_id]
+    //   N: total count of document
+    //   lt: number of times term t occurs in the collection
+    //   n: equals to sum(all qt), is the number of tokens in the query
+    //   ld: length of the document d, measured in tokens
+    //   lavg: average length of all documents in the collection
+    fn rank_lmd(&self, terms: &Vec<TermId>) -> Vec<DocScore> {
+        let mut scores = vec![];
+        if terms.len() == 0 {
+            return scores;
+        }
+        // find out query term frequency
+        let mut query_term_freq:HashMap<TermId, u32> = HashMap::new();
+        for &tid in terms {
+            query_term_freq.entry(tid)
+                .and_modify(|count| *count += 1)
+                .or_insert(1);
+        }
+        let document_count = self.document_count as f32; // N
+        let lavg = self.average_document_length as f32;
+        let query_token_num = terms.len() as f32; // n
+        let docs_contain_any = self.docs_contain_any(&terms);
+        for docid in docs_contain_any {
+            let ld = *self.document_length.get(&docid).unwrap() as f32;
+            let mut score = 0f32;
+            for &tid in query_term_freq.keys() {
+                let qt = *query_term_freq.get(&tid).unwrap() as f32;
+                if let Some(ftd_ref) = self.term_frequency.get(&(tid, docid)){
+                    let ftd = *ftd_ref as f32; 
+                    let lt = self.get_term_occurences_num(tid) as f32;
+                    score += (1f32 + ftd * document_count / lt).log2() * qt;
+                }
+            }
+            score -= (1f32 + ld / lavg).log2() * query_token_num;
+            scores.push(DocScore{docid: docid, score:score});  
+        }
+        // sort by socres
+        scores.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().reverse() );
+        scores
+    }
+
+
     fn query(&self, terms: &Vec<TermId>, ranking: RankingAlgorithm) -> Vec<DocScore> {
         let docs = vec![];
         if terms.len() == 0 {
@@ -504,7 +562,8 @@ impl SchemaDependIndex for PositionList {
             RankingAlgorithm::Default => scorer = PositionList::rank_bm25,
             RankingAlgorithm::ExactMatch => scorer = PositionList::search_phrase,
             RankingAlgorithm::VectorSpaceModel => scorer = PositionList::rank_cosine,
-            RankingAlgorithm::OkapiBM25 => scorer = PositionList::rank_bm25,         
+            RankingAlgorithm::OkapiBM25 => scorer = PositionList::rank_bm25,  
+            RankingAlgorithm::LMD => scorer = PositionList::rank_lmd,       
         }
         let doc_scores = scorer(&self, &terms);
         doc_scores
@@ -565,6 +624,12 @@ fn test_index_from_string(){
     assert_eq!(idx.total_document_length, 13);
     assert_eq!(idx.average_document_length, 6.5);
     assert_eq!(idx.document_count,2);
+
+    // test getter functions
+    assert_eq!(idx.get_term_occurences_num(2), 1); //world
+    assert_eq!(idx.get_term_occurences_num(1), 2); //hello
+    assert_eq!(idx.get_term_occurences_num(6), 3); //好
+    assert_eq!(idx.get_term_occurences_num(7), 1); //明
 }
 
 #[test]
@@ -745,4 +810,36 @@ fn test_rank_bm25(){
     assert_eq!( docs[3].docid, 3 );
     assert!( (docs[3].score - 0.18).abs() <= epsilon );
 
+}
+
+#[test]
+fn test_rank_lmd() {
+    let mut idx = PositionList::new();
+    use super::dictionary::{Dictionary};
+    let mut dict = Dictionary::new();
+    let mut term_ids = dict.generate_ids(&vec!["do", "you", "quarrel", "sir"]);
+    let mut doc_id = idx.build_from(&term_ids);
+    assert_eq!(doc_id, 1);
+    term_ids = dict.generate_ids(&vec!["quarrel", "sir", "no", "sir"]);
+    doc_id = idx.build_from(&term_ids);
+    assert_eq!(doc_id, 2);
+    term_ids = dict.generate_ids(&vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
+    "i", "serve", "as", "good", "a", "man", "as", "you"]);
+    doc_id = idx.build_from(&term_ids);
+    assert_eq!(doc_id, 3);
+    term_ids = dict.generate_ids(&vec!["no", "better"]);
+    doc_id = idx.build_from(&term_ids);
+    assert_eq!(doc_id, 4);
+    term_ids = dict.generate_ids(&vec!["well", "sir"]);
+    doc_id = idx.build_from(&term_ids);
+    assert_eq!(doc_id, 5);
+    assert!(idx.is_valid_doc_id(0) == false);
+    let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
+    let docs = idx.rank_lmd(&term_ids);
+    assert_eq!(docs.len(), 4);
+    assert_eq!(term_ids.len(),2); // unchanged
+    // doc 1 score should be 1.25
+    let docs_subset:Vec<DocScore> = docs.into_iter().filter(|doc| doc.docid == 1).collect();
+    let epsilon = 0.005;
+    assert!((docs_subset[0].score - 1.25).abs() < epsilon);
 }

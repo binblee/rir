@@ -7,4 +7,5 @@ pub enum RankingAlgorithm {
     ExactMatch,
     VectorSpaceModel,
     OkapiBM25,
+    LMD,
 }

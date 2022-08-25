@@ -46,6 +46,7 @@ enum SelectRankingAlgorithm {
     ExactMatch,
     VectorSpaceModel,
     OkapiBM25,
+    LMD,
 }
 
 fn main() {
@@ -93,6 +94,7 @@ fn exec_query(engine: &Engine, phrase: &str, ranking_option: &Option<SelectRanki
         Some(SelectRankingAlgorithm::ExactMatch) => ranking = RankingAlgorithm::ExactMatch,
         Some(SelectRankingAlgorithm::VectorSpaceModel) => ranking = RankingAlgorithm::VectorSpaceModel,
         Some(SelectRankingAlgorithm::OkapiBM25) => ranking = RankingAlgorithm::OkapiBM25,
+        Some(SelectRankingAlgorithm::LMD) => ranking = RankingAlgorithm::LMD,
         None => ranking = RankingAlgorithm::Default,
     }
     let result = engine.exec_query(phrase, ranking);
