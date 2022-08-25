@@ -22,8 +22,8 @@ pub struct PositionList {
     // the number of times term(termid) appears in document(doc_id)
     term_frequency: HashMap<(TermId, DocId), u32>,
     // number of tokens of a document measured in tokens
-    // TODO: use vector
-    document_length: HashMap<DocId, u32>,
+    // value doc_id - 1 is used as vector index
+    document_length: Vec<u32>,
     total_document_length: u32,
     // average document length
     average_document_length: f32,
@@ -95,7 +95,7 @@ impl SchemaDependIndex for PositionList {
             next_doc_id: 0,
             document_frequency: HashMap::new(),
             term_frequency: HashMap::new(),
-            document_length: HashMap::new(),
+            document_length: vec![],
             total_document_length: 0,
             average_document_length: 0.0,
             document_count: 0,
@@ -123,7 +123,7 @@ impl SchemaDependIndex for PositionList {
         let mut cached_term_id: HashSet<TermId> = HashSet::new();
         // update document length
         let document_length = term_ids.len() as u32;
-        self.document_length.entry(doc_id).or_insert(document_length);
+        self.document_length.push(document_length);
         self.total_document_length += document_length;
         // update document count
         self.document_count += 1;
@@ -488,7 +488,10 @@ impl SchemaDependIndex for PositionList {
         let lavg = self.average_document_length as f32;
         let docs_contain_any = self.docs_contain_any(&term_ids);
         for docid in docs_contain_any {
-            let ld = *self.document_length.get(&docid).unwrap() as f32;
+            assert!(docid >= 1);
+            assert!(docid <= self.document_count);
+            assert!(docid <= self.document_length.len() as u32);
+            let ld = self.document_length[docid as usize - 1] as f32;
             let k1_b_ld_lavg = k1*(1.0-b+b*(ld/lavg));
             let mut score = 0f32;
             for &tid in query_term_freq.keys() {
@@ -533,7 +536,7 @@ impl SchemaDependIndex for PositionList {
         let query_token_num = terms.len() as f32; // n
         let docs_contain_any = self.docs_contain_any(&terms);
         for docid in docs_contain_any {
-            let ld = *self.document_length.get(&docid).unwrap() as f32;
+            let ld = self.document_length[docid as usize - 1] as f32;
             let mut score = 0f32;
             for &tid in query_term_freq.keys() {
                 let qt = *query_term_freq.get(&tid).unwrap() as f32;
