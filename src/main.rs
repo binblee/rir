@@ -1,5 +1,4 @@
 pub mod ircore;
-use std::path::Path;
 use ircore::engine::Engine;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::io::{self, BufRead};
@@ -73,7 +72,7 @@ fn main() {
 }
 
 fn command_search(index_dir: &str, phrase_option: &Option<String>, ranking_option: &Option<SelectRankingAlgorithm>){
-    let engine = Engine::load_from(Path::new(index_dir));
+    let engine = Engine::load_from(index_dir);
     println!("index of {} documents loaded",engine.doc_count());
     match phrase_option {
         Some(phrase_str) => exec_query(&engine, &phrase_str, ranking_option),
@@ -118,16 +117,16 @@ fn exec_query(engine: &Engine, phrase: &str, ranking_option: &Option<SelectRanki
 fn command_build_index(corpus_dir: &str, index_dir: &str) -> io::Result<usize>{
     let mut engine = Engine::new();
     let mut count = 0;
-    if let Ok(count_res) = engine.build_index_from(&Path::new(corpus_dir)){
+    if let Ok(count_res) = engine.build_index_from(corpus_dir){
         count = count_res;
-        engine.save_to(&Path::new(index_dir))?;
+        engine.save_to(index_dir)?;
         stats(&engine);
     }
     Ok(count)
 }
 
 fn command_load_index(index_dir: &str){
-    let engine = Engine::load_from(Path::new(index_dir));
+    let engine = Engine::load_from(index_dir);
     stats(&engine);
 }
 
@@ -149,16 +148,4 @@ fn stats(engine: &Engine) {
 }
 
 fn command_sand_box() {
-    use ircore::doc::text::TextFileLoader;
-    use ircore::doc::Document;
-    let filepath = Path::new("./sample_corpus/non_utf8_encoding/103700");
-    match Document::parse_file(filepath){
-        Ok(content) => println!("{:?}", content),
-        Err(e) => println!("{:?}", e),
-    }
-    let filepath = Path::new("./sample_corpus/non_utf8_encoding/67305");
-    match Document::parse_file(filepath){
-        Ok(content) => println!("{:?}", content),
-        Err(e) => println!("{:?}", e),
-    }
 }

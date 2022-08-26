@@ -8,7 +8,7 @@ use serde::{Serialize, Deserialize};
 use bincode;
 use std::io::{self, Write, Read};
 use super::doc::Document;
-use super::doc::text::TextFileLoader;
+use super::doc::text::TextFileParser;
 use super::query::Query;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,7 +36,7 @@ impl Engine {
         self.doc_meta.len()
     }
 
-    pub fn load_from(path: &Path) -> Self {
+    pub fn load_from(path: &str) -> Self {
         let mut reader = File::open(path).expect("cannot open idx file.");
         let mut encoded:Vec<u8> = vec![];
         if let Ok(_) = reader.read_to_end(&mut encoded){
@@ -46,7 +46,7 @@ impl Engine {
         Self::new()
     }
 
-    pub fn build_index_from(&mut self, path: &Path) -> Result<usize, ()> {
+    pub fn build_index_from(&mut self, path: &str) -> Result<usize, ()> {
         if let Ok(doc_count) = self.build_index(path) {
             if let Ok(_) = self.compute_tf_idf() {
                 return Ok(doc_count);
@@ -55,25 +55,9 @@ impl Engine {
         Err(())
     }
 
-    pub fn build_index(&mut self, path: &Path) -> Result<usize, ()> {
-        if path.is_file(){
-            match Document::parse_file(path){
-                Ok(doc) => {
-                    let res = self.add_document(&doc);
-                    assert_eq!(res, Ok(()));
-                },
-                Err(e) => {
-                    println!("failed to parse file {}, error: {}", path.to_string_lossy(), e);
-                }
-            }
-        }else if path.is_dir(){
-            println!("indexing {}...", path.display());
-            for entry_result in path.read_dir().expect(&format!("read dir {} failed", path.display())) {
-                if let Ok(entry) = entry_result{
-                    let entry_path = entry.path();
-                    self.build_index(&entry_path)?;    
-                }
-            }    
+    pub fn build_index(&mut self, path: &str) -> Result<usize, ()> {
+        for doc in TextFileParser::docs(path){
+            self.add_document(&doc).unwrap();
         }
         Ok(self.doc_count())    
     }
@@ -92,7 +76,8 @@ impl Engine {
         self.index.compute_tf_idf()
     }
 
-    pub fn save_to(&mut self, path: &Path) -> io::Result<()> {
+    pub fn save_to(&mut self, path_str: &str) -> io::Result<()> {
+        let path = Path::new(path_str);
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir)?;
         }
@@ -135,17 +120,17 @@ impl Engine {
 #[test]
 fn test_build_index() {
     let mut engine = Engine::new();
-    let res = engine.build_index(&Path::new("./sample_corpus/romeo_juliet"));
+    let res = engine.build_index("./sample_corpus/romeo_juliet");
     assert_eq!(res, Ok(5));
 }
 
 #[test]
 fn test_save_and_load_index() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./sample_corpus/romeo_juliet"));
+    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/romeo_juliet1.idx");
+    let index_path = ".rir/romeo_juliet1.idx";
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
@@ -158,7 +143,7 @@ fn test_save_and_load_index() {
 #[test]
 fn test_search_phrase() {
     let mut engine = Engine::new();
-    let res = engine.build_index(&Path::new("./sample_corpus/romeo_juliet"));
+    let res = engine.build_index("./sample_corpus/romeo_juliet");
     assert_eq!(res, Ok(5));
     let mut docs = engine.exec_query("Quarrel sir", RankingAlgorithm::ExactMatch);
     use std::collections::HashSet;
@@ -181,10 +166,10 @@ fn test_search_phrase() {
 #[test]
 fn test_vector_space_model() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./sample_corpus/romeo_juliet"));
+    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/romeo_juliet2.idx");
+    let index_path = ".rir/romeo_juliet2.idx";
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
@@ -202,10 +187,10 @@ fn test_vector_space_model() {
 #[test]
 fn test_rank_bm25() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./sample_corpus/romeo_juliet"));
+    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/romeo_juliet3.idx");
+    let index_path = ".rir/romeo_juliet3.idx";
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
@@ -223,10 +208,10 @@ fn test_rank_bm25() {
 #[test]
 fn test_rank_default() {
     let mut engine = Engine::new();
-    let res = engine.build_index_from(&Path::new("./sample_corpus/romeo_juliet"));
+    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
     assert_eq!(res, Ok(5));
     assert_eq!(engine.doc_count(), 5);
-    let index_path = &Path::new(".rir/romeo_juliet4.idx");
+    let index_path = ".rir/romeo_juliet4.idx";
     let _ = engine.save_to(index_path);
     let loaded_engine = Engine::load_from(index_path);
     assert_eq!(loaded_engine.doc_count(), 5);
