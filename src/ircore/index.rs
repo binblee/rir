@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 use super::utils::sparse_vector::{SparseVector, SparseVectorOp};
 use super::dictionary::Dictionary;
 use super::common::{DocId, TermId, TermOffset, RankingAlgorithm};
-
+use super::utils::binary_search::binary_search;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Posting {
@@ -75,11 +75,6 @@ pub trait SchemaDependIndex {
     fn stats(&self, dict: &Dictionary) -> IndexStats;
     // query wrapper
     fn query(&self, terms: &Vec<TermId>, ranking: RankingAlgorithm) -> Vec<DocScore>;
-    // helper functions
-    fn binary_search(
-        positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
-        test_fn: fn(u32, u32) -> bool, retval_fn: fn(usize, usize) -> usize) -> usize;
-
 }
 
 pub struct DocScore {
@@ -256,7 +251,7 @@ impl SchemaDependIndex for PositionList {
                     }else if positions[0] > after_position {
                         return Some(positions[0]);
                     }else{
-                        let target = Self::binary_search(
+                        let target = binary_search(
                             positions, 0, positions.len()-1, after_position,
                             |v1, v2 | v1 <= v2, 
                             |_, v2 | v2);
@@ -292,7 +287,7 @@ impl SchemaDependIndex for PositionList {
                     }else if *positions.last()? < before_position {
                         return Some(*positions.last()?)
                     }else{
-                        let target = Self::binary_search(
+                        let target = binary_search(
                             positions, 0, positions.len(), before_position,
                             |v1, v2 | v1 < v2, |v1, _ | v1
                         );
@@ -302,24 +297,6 @@ impl SchemaDependIndex for PositionList {
             }
         }
         None
-    }
-
-    fn binary_search(
-        positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
-        test_fn: fn(u32, u32) -> bool, retval_fn: fn(usize, usize) -> usize) -> usize
-    {
-        let mut mid:usize;
-        let mut low_index = low;
-        let mut high_index = high;
-        while high_index - low_index > 1 {
-            mid = (high_index + low_index)/2;
-            if test_fn(positions[mid], current) {
-                low_index = mid;
-            }else{
-                high_index = mid;
-            }
-        }
-        retval_fn(low_index, high_index)
     }
 
     fn next_phrase(
