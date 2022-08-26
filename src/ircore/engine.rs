@@ -47,19 +47,13 @@ impl Engine {
     }
 
     pub fn build_index_from(&mut self, path: &str) -> Result<usize, ()> {
-        if let Ok(doc_count) = self.build_index(path) {
-            if let Ok(_) = self.compute_tf_idf() {
-                return Ok(doc_count);
-            }
-        }
-        Err(())
-    }
-
-    pub fn build_index(&mut self, path: &str) -> Result<usize, ()> {
         for doc in TextFileParser::docs(path){
             self.add_document(&doc).unwrap();
         }
-        Ok(self.doc_count())    
+        if let Ok(_) = self.compute_tf_idf() {
+            return Ok(self.doc_count());
+        }
+        Err(())
     }
 
     fn add_document(&mut self, doc: &Document) -> Result<(),()> {
@@ -120,7 +114,7 @@ impl Engine {
 #[test]
 fn test_build_index() {
     let mut engine = Engine::new();
-    let res = engine.build_index("./sample_corpus/romeo_juliet");
+    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
     assert_eq!(res, Ok(5));
 }
 
@@ -143,7 +137,7 @@ fn test_save_and_load_index() {
 #[test]
 fn test_search_phrase() {
     let mut engine = Engine::new();
-    let res = engine.build_index("./sample_corpus/romeo_juliet");
+    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
     assert_eq!(res, Ok(5));
     let mut docs = engine.exec_query("Quarrel sir", RankingAlgorithm::ExactMatch);
     use std::collections::HashSet;
