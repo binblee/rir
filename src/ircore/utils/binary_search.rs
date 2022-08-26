@@ -1,7 +1,7 @@
-use super::super::common::TermOffset;
+use super::super::common::{TermOffset};
 pub fn binary_search(
-    positions: &Vec<TermOffset> , low:usize, high: usize, current: u32,
-    test_fn: fn(u32, u32) -> bool, retval_fn: fn(usize, usize) -> usize) -> usize {
+    positions: &Vec<TermOffset> , low:usize, high: usize, current: TermOffset,
+    test_fn: fn(TermOffset, TermOffset) -> bool, retval_fn: fn(usize, usize) -> usize) -> usize {
 
     let mut mid:usize;
     let mut low_index = low;

@@ -24,22 +24,22 @@ pub struct PositionList {
     // number of tokens of a document measured in tokens
     // value doc_id - 1 is used as vector index
     document_length: Vec<u32>,
-    total_document_length: u32,
+    total_document_length: u64,
     // average document length
     average_document_length: f32,
     // total number of documents
-    document_count: u32,
+    document_count: usize,
     // TF-IDF for all documents
     tf_idf_matrix: Vec<SparseVector>,
 }
 
 pub struct IndexStats {
     // total document length in tokens
-    pub total_document_length: u32,
+    pub total_document_length: u64,
     // average document length
     pub average_document_length: f32,
     // total number of documents
-    pub document_count: u32,
+    pub document_count: usize,
     pub term_freq: Vec<(TermId, String, u32)>,
 }
 
@@ -119,7 +119,7 @@ impl SchemaDependIndex for PositionList {
         // update document length
         let document_length = term_ids.len() as u32;
         self.document_length.push(document_length);
-        self.total_document_length += document_length;
+        self.total_document_length += document_length as u64;
         // update document count
         self.document_count += 1;
         // update average document length
@@ -221,7 +221,7 @@ impl SchemaDependIndex for PositionList {
     }
 
     fn is_valid_doc_id(&self, doc_id: DocId) -> bool {
-        doc_id >= 1 && doc_id <= self.document_count + 1 
+        doc_id >= 1 && doc_id <= self.document_count as DocId + 1 
     }
 
 
@@ -322,7 +322,7 @@ impl SchemaDependIndex for PositionList {
                     }
                 }
             }
-            if start < end && end - start == (phrase.len() - 1) as u32 {
+            if start < end && end - start == (phrase.len() - 1) as TermOffset {
                 return Some((start, end));
             }else{
                 return self.next_phrase(doc, phrase, start);
@@ -384,14 +384,14 @@ impl SchemaDependIndex for PositionList {
     }
 
     fn compute_tf_idf(&mut self) -> Result<(),()>{
-        assert_eq!(self.document_count, self.document_length.len() as u32);
+        assert_eq!(self.document_count, self.document_length.len());
         for _ in 0..self.document_count {
             let tf_idf_vector = SparseVector::new();
             self.tf_idf_matrix.push(tf_idf_vector);
         }
         let doc_count = self.document_count as f32;
         for (term_id, doc_id) in self.term_frequency.keys() {
-            assert!(*doc_id <= self.document_count + 1);
+            assert!(*doc_id <= self.document_count as DocId + 1);
             let term_freq = *self.term_frequency.get( &(*term_id, *doc_id) ).unwrap() as f32;
             assert!(self.document_frequency.contains_key(term_id));
             let doc_freq = *self.document_frequency.get(term_id).unwrap() as f32;
@@ -466,8 +466,8 @@ impl SchemaDependIndex for PositionList {
         let docs_contain_any = self.docs_contain_any(&term_ids);
         for docid in docs_contain_any {
             assert!(docid >= 1);
-            assert!(docid <= self.document_count);
-            assert!(docid <= self.document_length.len() as u32);
+            assert!(docid <= self.document_count as DocId);
+            assert!(docid <= self.document_length.len() as DocId);
             let ld = self.document_length[docid as usize - 1] as f32;
             let k1_b_ld_lavg = k1*(1.0-b+b*(ld/lavg));
             let mut score = 0f32;
@@ -733,7 +733,7 @@ fn test_vector_space_model(){
     assert_eq!(doc_id, 5);
     assert!(idx.is_valid_doc_id(0) == false);
     let tfidf_ok = idx.compute_tf_idf();
-    assert_eq!(idx.document_count, idx.document_length.len() as u32);
+    assert_eq!(idx.document_count, idx.document_length.len());
     assert_eq!(tfidf_ok, Ok(()));
     let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
     let docs = idx.rank_cosine(&term_ids);
