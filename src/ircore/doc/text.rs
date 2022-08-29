@@ -157,6 +157,6 @@ fn test_encoding_rs_io() {
 
 #[test]
 fn test_txt_file_parser_docs() {
-    let docs:Vec<Document> = TextFileParser::docs("./sample_corpus/").collect();
-    assert_eq!(docs.len(), 7);
+    let docs:Vec<Document> = TextFileParser::docs("./sample_corpus/romeo_juliet").collect();
+    assert_eq!(docs.len(), 5);
 }

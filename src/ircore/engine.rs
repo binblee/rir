@@ -1,6 +1,7 @@
 use super::index::{SchemaDependIndex, PositionList, IndexStats};
 use super::common::{DocId, RankingAlgorithm};
 use super::analyzer::{Analyzer, AnalyzerStats};
+use super::tokenizer::Language;
 use std::fs::{self, File};
 use std::path::Path;
 use std::collections::{HashMap};
@@ -10,6 +11,7 @@ use std::io::{self, Write, Read};
 use super::doc::Document;
 use super::doc::text::TextFileParser;
 use super::query::Query;
+use whatlang::{Detector, Lang};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Engine {
@@ -47,7 +49,19 @@ impl Engine {
     }
 
     pub fn build_index_from(&mut self, path: &str) -> Result<usize, ()> {
+        let mut lang_detected = false;
         for doc in TextFileParser::docs(path){
+            if !lang_detected {
+                let allowlist = vec![Lang::Eng, Lang::Cmn];
+                let detector = Detector::with_allowlist(allowlist);
+                let content = doc.get_content();
+                let lang = detector.detect_lang(content);
+                match lang {
+                    Some(Lang::Cmn) => self.analyzer.set_language(Language::Chinese),
+                    _ => (),
+                }
+                lang_detected = true;
+            }
             self.add_document(&doc).unwrap();
         }
         if let Ok(_) = self.compute_tf_idf() {
@@ -218,5 +232,29 @@ fn test_rank_default() {
             &"./sample_corpus/romeo_juliet/5.txt".to_string(), 
             &"./sample_corpus/romeo_juliet/b/3.txt".to_string(),
             ]));
+
+}
+
+#[test]
+fn test_chinese_text_index() {
+    let mut engine = Engine::new();
+    let res = engine.build_index_from("./sample_corpus/sanguo");
+    assert_eq!(res, Ok(19));
+    assert_eq!(engine.doc_count(), 19);
+    let index_path = ".rir/sanguo.idx";
+    let _ = engine.save_to(index_path);
+    let loaded_engine = Engine::load_from(index_path);
+    assert_eq!(loaded_engine.doc_count(), 19);
+    let docs = loaded_engine.exec_query("刘备", RankingAlgorithm::ExactMatch);
+    use std::collections::HashSet;
+    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+    assert_eq!(doc_set, HashSet::from([&"./sample_corpus/sanguo/9.txt".to_string()]));
+    let docs = loaded_engine.exec_query("桃园结义", RankingAlgorithm::Default);
+    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+    assert_eq!(doc_set, HashSet::from([
+        &"./sample_corpus/sanguo/1.txt".to_string(),
+        &"./sample_corpus/sanguo/9.txt".to_string(),
+        &"./sample_corpus/sanguo/8.txt".to_string(),
+        ]));
 
 }

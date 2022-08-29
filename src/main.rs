@@ -137,6 +137,7 @@ fn stats(engine: &Engine) {
     println!("total length: {}", summary.index.total_document_length);
     println!("average length: {}", summary.index.average_document_length);
     println!("total term count: {}", summary.analyzer.dict.term_count);
+    println!("language: {}", summary.analyzer.lang);
     let display_num = 100;
     println!("===Top {} terms===", display_num);
     let mut sum_so_far:f32 = 0.0;
@@ -148,4 +149,20 @@ fn stats(engine: &Engine) {
 }
 
 fn command_sand_box() {
+    use whatlang::{Detector, Lang};
+
+    let allowlist = vec![Lang::Eng, Lang::Cmn];
+    
+    // You can also create detector using with_denylist function
+    let detector = Detector::with_allowlist(allowlist);
+    let mut lang = detector.detect_lang("There is no reason not to learn Esperanto.");
+    assert_eq!(lang, Some(Lang::Eng));
+    println!("{:?}", lang);
+    lang = detector.detect_lang("宴桃园豪杰三结义　斩黄巾英雄首立功");
+    println!("{:?}", lang);
+    let script = detector.detect("宴桃园豪杰三结义　斩黄巾英雄首立功");
+    println!("{:?}", script);
+    let script = detector.detect("Do you quarrel, sir?");
+    println!("{:?}", script);
+
 }
