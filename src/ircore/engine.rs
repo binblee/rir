@@ -125,136 +125,152 @@ impl Engine {
 
 }
 
-#[test]
-fn test_build_index() {
-    let mut engine = Engine::new();
-    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
-    assert_eq!(res, Ok(5));
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_save_and_load_index() {
-    let mut engine = Engine::new();
-    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
-    assert_eq!(res, Ok(5));
-    assert_eq!(engine.doc_count(), 5);
-    let index_path = ".rir/romeo_juliet1.idx";
-    let _ = engine.save_to(index_path);
-    let loaded_engine = Engine::load_from(index_path);
-    assert_eq!(loaded_engine.doc_count(), 5);
-    let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::ExactMatch);
-    use std::collections::HashSet;
-    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([&"./sample_corpus/romeo_juliet/a/1.txt".to_string(), &"./sample_corpus/romeo_juliet/a/2.txt".to_string()]));
-}
+    #[test]
+    fn test_build_index() {
+        let mut engine = Engine::new();
+        let res = engine.build_index_from("./sample_corpus/romeo_juliet");
+        assert_eq!(res, Ok(5));
+    }
 
-#[test]
-fn test_search_phrase() {
-    let mut engine = Engine::new();
-    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
-    assert_eq!(res, Ok(5));
-    let mut docs = engine.exec_query("Quarrel sir", RankingAlgorithm::ExactMatch);
-    use std::collections::HashSet;
-    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([&"./sample_corpus/romeo_juliet/a/1.txt".to_string(), &"./sample_corpus/romeo_juliet/a/2.txt".to_string()]));
-    docs = engine.exec_query("sir", RankingAlgorithm::ExactMatch);
-    assert_eq!(docs.len(), 4);
+    #[test]
+    fn test_save_and_load_index() {
+        let mut engine = Engine::new();
+        let res = engine.build_index_from("./sample_corpus/romeo_juliet");
+        assert_eq!(res, Ok(5));
+        assert_eq!(engine.doc_count(), 5);
+        let index_path = ".rir/romeo_juliet1.idx";
+        let _ = engine.save_to(index_path);
+        let loaded_engine = Engine::load_from(index_path);
+        assert_eq!(loaded_engine.doc_count(), 5);
+        let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::ExactMatch);
+        use std::collections::HashSet;
+        let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+        assert_eq!(doc_set, HashSet::from([&"./sample_corpus/romeo_juliet/a/1.txt".to_string(), &"./sample_corpus/romeo_juliet/a/2.txt".to_string()]));
+    }
 
-    docs = engine.exec_query("non-exist", RankingAlgorithm::ExactMatch);
-    assert_eq!(docs.len(), 0);
+    #[test]
+    fn test_search_phrase() {
+        let mut engine = Engine::new();
+        let res = engine.build_index_from("./sample_corpus/romeo_juliet");
+        assert_eq!(res, Ok(5));
+        let mut docs = engine.exec_query("Quarrel sir", RankingAlgorithm::ExactMatch);
+        use std::collections::HashSet;
+        let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+        assert_eq!(doc_set, HashSet::from([&"./sample_corpus/romeo_juliet/a/1.txt".to_string(), &"./sample_corpus/romeo_juliet/a/2.txt".to_string()]));
+        docs = engine.exec_query("sir", RankingAlgorithm::ExactMatch);
+        assert_eq!(docs.len(), 4);
 
-    docs = engine.exec_query("Sir non-exist", RankingAlgorithm::ExactMatch);
-    assert_eq!(docs.len(), 0);
+        docs = engine.exec_query("non-exist", RankingAlgorithm::ExactMatch);
+        assert_eq!(docs.len(), 0);
 
-    docs = engine.exec_query("Sir", RankingAlgorithm::ExactMatch);
-    assert_eq!(docs.len(), 4);
+        docs = engine.exec_query("Sir non-exist", RankingAlgorithm::ExactMatch);
+        assert_eq!(docs.len(), 0);
 
-}
+        docs = engine.exec_query("Sir", RankingAlgorithm::ExactMatch);
+        assert_eq!(docs.len(), 4);
 
-#[test]
-fn test_vector_space_model() {
-    let mut engine = Engine::new();
-    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
-    assert_eq!(res, Ok(5));
-    assert_eq!(engine.doc_count(), 5);
-    let index_path = ".rir/romeo_juliet2.idx";
-    let _ = engine.save_to(index_path);
-    let loaded_engine = Engine::load_from(index_path);
-    assert_eq!(loaded_engine.doc_count(), 5);
-    let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::VectorSpaceModel);
-    use std::collections::HashSet;
-    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([
-            &"./sample_corpus/romeo_juliet/a/2.txt".to_string(), 
-            &"./sample_corpus/romeo_juliet/a/1.txt".to_string(),
-            &"./sample_corpus/romeo_juliet/5.txt".to_string(), 
-            &"./sample_corpus/romeo_juliet/b/3.txt".to_string(),
+    }
+
+    #[test]
+    fn test_vector_space_model() {
+        let mut engine = Engine::new();
+        let res = engine.build_index_from("./sample_corpus/romeo_juliet");
+        assert_eq!(res, Ok(5));
+        assert_eq!(engine.doc_count(), 5);
+        let index_path = ".rir/romeo_juliet2.idx";
+        let _ = engine.save_to(index_path);
+        let loaded_engine = Engine::load_from(index_path);
+        assert_eq!(loaded_engine.doc_count(), 5);
+        let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::VectorSpaceModel);
+        use std::collections::HashSet;
+        let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+        assert_eq!(doc_set, HashSet::from([
+                &"./sample_corpus/romeo_juliet/a/2.txt".to_string(), 
+                &"./sample_corpus/romeo_juliet/a/1.txt".to_string(),
+                &"./sample_corpus/romeo_juliet/5.txt".to_string(), 
+                &"./sample_corpus/romeo_juliet/b/3.txt".to_string(),
+                ]));
+    }
+
+    #[test]
+    fn test_rank_bm25() {
+        let mut engine = Engine::new();
+        let res = engine.build_index_from("./sample_corpus/romeo_juliet");
+        assert_eq!(res, Ok(5));
+        assert_eq!(engine.doc_count(), 5);
+        let index_path = ".rir/romeo_juliet3.idx";
+        let _ = engine.save_to(index_path);
+        let loaded_engine = Engine::load_from(index_path);
+        assert_eq!(loaded_engine.doc_count(), 5);
+        let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::OkapiBM25);
+        use std::collections::HashSet;
+        let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+        assert_eq!(doc_set, HashSet::from([
+                &"./sample_corpus/romeo_juliet/a/2.txt".to_string(), 
+                &"./sample_corpus/romeo_juliet/a/1.txt".to_string(),
+                &"./sample_corpus/romeo_juliet/5.txt".to_string(), 
+                &"./sample_corpus/romeo_juliet/b/3.txt".to_string(),
+                ]));
+    }
+
+    #[test]
+    fn test_rank_default() {
+        let mut engine = Engine::new();
+        let res = engine.build_index_from("./sample_corpus/romeo_juliet");
+        assert_eq!(res, Ok(5));
+        assert_eq!(engine.doc_count(), 5);
+        let index_path = ".rir/romeo_juliet4.idx";
+        let _ = engine.save_to(index_path);
+        let loaded_engine = Engine::load_from(index_path);
+        assert_eq!(loaded_engine.doc_count(), 5);
+        let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::Default);
+        use std::collections::HashSet;
+        let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+        assert_eq!(doc_set, HashSet::from([
+                &"./sample_corpus/romeo_juliet/a/2.txt".to_string(), 
+                &"./sample_corpus/romeo_juliet/a/1.txt".to_string(),
+                &"./sample_corpus/romeo_juliet/5.txt".to_string(), 
+                &"./sample_corpus/romeo_juliet/b/3.txt".to_string(),
+                ]));
+
+    }
+
+    #[test]
+    fn test_chinese_text_index() {
+        let mut engine = Engine::new();
+        let res = engine.build_index_from("./sample_corpus/sanguo");
+        assert_eq!(res, Ok(19));
+        assert_eq!(engine.doc_count(), 19);
+        let index_path = ".rir/sanguo.idx";
+        let _ = engine.save_to(index_path);
+        let loaded_engine = Engine::load_from(index_path);
+        assert_eq!(loaded_engine.doc_count(), 19);
+        let docs = loaded_engine.exec_query("刘备", RankingAlgorithm::ExactMatch);
+        use std::collections::HashSet;
+        let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+        assert_eq!(doc_set, HashSet::from([&"./sample_corpus/sanguo/9.txt".to_string()]));
+        let docs = loaded_engine.exec_query("桃园结义", RankingAlgorithm::Default);
+        let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+        assert_eq!(doc_set, HashSet::from([
+            &"./sample_corpus/sanguo/1.txt".to_string(),
+            &"./sample_corpus/sanguo/9.txt".to_string(),
+            &"./sample_corpus/sanguo/8.txt".to_string(),
             ]));
-}
 
-#[test]
-fn test_rank_bm25() {
-    let mut engine = Engine::new();
-    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
-    assert_eq!(res, Ok(5));
-    assert_eq!(engine.doc_count(), 5);
-    let index_path = ".rir/romeo_juliet3.idx";
-    let _ = engine.save_to(index_path);
-    let loaded_engine = Engine::load_from(index_path);
-    assert_eq!(loaded_engine.doc_count(), 5);
-    let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::OkapiBM25);
-    use std::collections::HashSet;
-    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([
-            &"./sample_corpus/romeo_juliet/a/2.txt".to_string(), 
-            &"./sample_corpus/romeo_juliet/a/1.txt".to_string(),
-            &"./sample_corpus/romeo_juliet/5.txt".to_string(), 
-            &"./sample_corpus/romeo_juliet/b/3.txt".to_string(),
-            ]));
-}
+    }
 
-#[test]
-fn test_rank_default() {
-    let mut engine = Engine::new();
-    let res = engine.build_index_from("./sample_corpus/romeo_juliet");
-    assert_eq!(res, Ok(5));
-    assert_eq!(engine.doc_count(), 5);
-    let index_path = ".rir/romeo_juliet4.idx";
-    let _ = engine.save_to(index_path);
-    let loaded_engine = Engine::load_from(index_path);
-    assert_eq!(loaded_engine.doc_count(), 5);
-    let docs = loaded_engine.exec_query("Quarrel sir", RankingAlgorithm::Default);
-    use std::collections::HashSet;
-    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([
-            &"./sample_corpus/romeo_juliet/a/2.txt".to_string(), 
-            &"./sample_corpus/romeo_juliet/a/1.txt".to_string(),
-            &"./sample_corpus/romeo_juliet/5.txt".to_string(), 
-            &"./sample_corpus/romeo_juliet/b/3.txt".to_string(),
-            ]));
-
-}
-
-#[test]
-fn test_chinese_text_index() {
-    let mut engine = Engine::new();
-    let res = engine.build_index_from("./sample_corpus/sanguo");
-    assert_eq!(res, Ok(19));
-    assert_eq!(engine.doc_count(), 19);
-    let index_path = ".rir/sanguo.idx";
-    let _ = engine.save_to(index_path);
-    let loaded_engine = Engine::load_from(index_path);
-    assert_eq!(loaded_engine.doc_count(), 19);
-    let docs = loaded_engine.exec_query("刘备", RankingAlgorithm::ExactMatch);
-    use std::collections::HashSet;
-    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([&"./sample_corpus/sanguo/9.txt".to_string()]));
-    let docs = loaded_engine.exec_query("桃园结义", RankingAlgorithm::Default);
-    let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-    assert_eq!(doc_set, HashSet::from([
-        &"./sample_corpus/sanguo/1.txt".to_string(),
-        &"./sample_corpus/sanguo/9.txt".to_string(),
-        &"./sample_corpus/sanguo/8.txt".to_string(),
-        ]));
+    #[test]
+    fn test_whatlang() {
+        let allowlist = vec![Lang::Eng, Lang::Cmn];
+        let detector = Detector::with_allowlist(allowlist);
+        let mut lang = detector.detect_lang("There is no reason not to learn Esperanto.");
+        assert_eq!(lang, Some(Lang::Eng));
+        lang = detector.detect_lang("宴桃园豪杰三结义　斩黄巾英雄首立功");
+        assert_eq!(lang, Some(Lang::Cmn));
+    }
 
 }

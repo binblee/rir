@@ -149,20 +149,9 @@ fn stats(engine: &Engine) {
 }
 
 fn command_sand_box() {
-    use whatlang::{Detector, Lang};
-
-    let allowlist = vec![Lang::Eng, Lang::Cmn];
-    
-    // You can also create detector using with_denylist function
-    let detector = Detector::with_allowlist(allowlist);
-    let mut lang = detector.detect_lang("There is no reason not to learn Esperanto.");
-    assert_eq!(lang, Some(Lang::Eng));
-    println!("{:?}", lang);
-    lang = detector.detect_lang("宴桃园豪杰三结义　斩黄巾英雄首立功");
-    println!("{:?}", lang);
-    let script = detector.detect("宴桃园豪杰三结义　斩黄巾英雄首立功");
-    println!("{:?}", script);
-    let script = detector.detect("Do you quarrel, sir?");
-    println!("{:?}", script);
-
+    let jieba = jieba_rs::Jieba::new();
+    let words = jieba.cut("滚滚长江东逝水，浪花淘尽英雄。", false);
+    assert_eq!(words, vec!["滚滚", "长江", "东", "逝水", "，", "浪花", "淘", "尽", "英雄", "。"]);
+    let tokens = jieba.tokenize("滚滚长江东逝水，浪花淘尽英雄。", jieba_rs::TokenizeMode::Search, true);
+    println!("{:?}", tokens);
 }

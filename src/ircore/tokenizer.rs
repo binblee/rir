@@ -68,22 +68,47 @@ impl Segmentator {
 }
 
 
-#[test]
-fn test_parse_tokens() {
-    let text = "Quarrel sir! no, sir!";
-    let latinseg = Segmentator::new();
-    let normalized = latinseg.normalize(text);
-    let tokens = latinseg.parse_tokens(&normalized);
-    assert_eq!(tokens, vec!["quarrel", "sir", "no", "sir"]);
-}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_parse_tokens() {
+        use super::*;
+        let text = "Quarrel sir! no, sir!";
+        let latinseg = Segmentator::new();
+        let normalized = latinseg.normalize(text);
+        let tokens = latinseg.parse_tokens(&normalized);
+        assert_eq!(tokens, vec!["quarrel", "sir", "no", "sir"]);
+    }
 
-#[test]
-fn test_parse_chinese() {
-    let text = "滚滚长江东逝水，浪花淘尽英雄。";
-    let mut seg = Segmentator::new();
-    seg.set_language(Language::Chinese);
-    let normalized = seg.normalize(text);
-    let tokens = seg.parse_tokens(&normalized);
-    // assert_eq!(tokens, vec!["滚滚", "长江", "东", "逝水", "，", "浪花", "淘", "尽", "英雄", "。"]);
-    assert_eq!(tokens, vec!["滚滚", "长江", "东", "逝水", "浪花", "淘", "尽", "英雄"]);
+
+    #[test]
+    fn test_parse_chinese() {
+        use super::*;
+        let text = "滚滚长江东逝水，浪花淘尽英雄。";
+        let mut seg = Segmentator::new();
+        seg.set_language(Language::Chinese);
+        let normalized = seg.normalize(text);
+        let tokens = seg.parse_tokens(&normalized);
+        assert_eq!(tokens, vec!["滚滚", "长江", "东", "逝水", "浪花", "淘", "尽", "英雄"]);
+    }
+
+    #[test]
+    fn test_jieba() {
+        use jieba_rs::Token;
+        let jieba = jieba_rs::Jieba::new();
+        let words = jieba.cut("滚滚长江东逝水，浪花淘尽英雄。", false);
+        assert_eq!(words, vec!["滚滚", "长江", "东", "逝水", "，", "浪花", "淘", "尽", "英雄", "。"]);
+        let tokens = jieba.tokenize("滚滚长江东逝水，浪花淘尽英雄。", jieba_rs::TokenizeMode::Search, true);
+        assert_eq!(tokens, vec![
+            Token { word: "滚滚", start: 0, end: 2 }, 
+            Token { word: "长江", start: 2, end: 4 }, 
+            Token { word: "东", start: 4, end: 5 }, 
+            Token { word: "逝水", start: 5, end: 7 }, 
+            Token { word: "，", start: 7, end: 8 }, 
+            Token { word: "浪花", start: 8, end: 10 }, 
+            Token { word: "淘尽", start: 10, end: 12 }, 
+            Token { word: "英雄", start: 12, end: 14 }, 
+            Token { word: "。", start: 14, end: 15 }]
+        );
+    }
 }

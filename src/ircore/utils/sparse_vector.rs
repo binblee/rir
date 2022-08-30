@@ -57,56 +57,62 @@ impl SparseVectorOp for SparseVector {
     }
 }
 
-#[test]
-fn test_sparse_vector() {
-    let mut sv = SparseVector::new();
-    assert_eq!(sv.vec_len(), 0.0);
-    let res_set = sv.vec_set(1, 5.5);
-    assert_eq!(res_set, (1, 5.5));
-    let mut res = sv.vec_get(1);
-    assert_eq!(res, 5.5);
-    res = sv.vec_get(10000);
-    assert_eq!(res, 0.0);
-    assert_eq!(sv.len(), 1);
-    sv.vec_set(100, 2.8);
-    assert_eq!(sv.len(), 2);
-    assert!((sv.vec_len()-6.17170964968).abs() <= f32::EPSILON);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_sparse_vector_normalize() {
-    //   1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16
-    // [0.00,0.00,0.00,0.00,1.32,0.00,0.00,0.00,0.00,0.00,0.00,1.32,0.00,0.32,0.00,1.32]
-    let mut sv1 = SparseVector::new();
-    sv1.vec_set(5, 1.32);
-    sv1.vec_set(12, 1.32);
-    sv1.vec_set(14, 0.32);
-    sv1.vec_set(16, 1.32);
-    sv1.vec_normalize();
-    let epsilon = 0.005f32;
-    assert!( (sv1.vec_get(5) - 0.57).abs() <= epsilon );
-    assert!( (sv1.vec_get(12) - 0.57).abs() <= epsilon );
-    assert!( (sv1.vec_get(14) - 0.14).abs() <= epsilon );
-    assert!( (sv1.vec_get(16) - 0.57).abs() <= epsilon );
-    assert_eq!( sv1.len(), 4);
-}
+    #[test]
+    fn test_sparse_vector() {
+        let mut sv = SparseVector::new();
+        assert_eq!(sv.vec_len(), 0.0);
+        let res_set = sv.vec_set(1, 5.5);
+        assert_eq!(res_set, (1, 5.5));
+        let mut res = sv.vec_get(1);
+        assert_eq!(res, 5.5);
+        res = sv.vec_get(10000);
+        assert_eq!(res, 0.0);
+        assert_eq!(sv.len(), 1);
+        sv.vec_set(100, 2.8);
+        assert_eq!(sv.len(), 2);
+        assert!((sv.vec_len()-6.17170964968).abs() <= f32::EPSILON);
+    }
 
-#[test]
-fn test_sparse_vector_dot() {
-    //   1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16
-    // [0.00,0.00,0.00,0.00,0.57,0.00,0.00,0.00,0.00,0.00,0.00,0.57,0.00,0.14,0.00,0.57]
-    let mut sv1 = SparseVector::new();
-    sv1.vec_set(5, 0.57);
-    sv1.vec_set(12, 0.57);
-    sv1.vec_set(14, 0.14);
-    sv1.vec_set(16, 0.57);
+    #[test]
+    fn test_sparse_vector_normalize() {
+        //   1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16
+        // [0.00,0.00,0.00,0.00,1.32,0.00,0.00,0.00,0.00,0.00,0.00,1.32,0.00,0.32,0.00,1.32]
+        let mut sv1 = SparseVector::new();
+        sv1.vec_set(5, 1.32);
+        sv1.vec_set(12, 1.32);
+        sv1.vec_set(14, 0.32);
+        sv1.vec_set(16, 1.32);
+        sv1.vec_normalize();
+        let epsilon = 0.005f32;
+        assert!( (sv1.vec_get(5) - 0.57).abs() <= epsilon );
+        assert!( (sv1.vec_get(12) - 0.57).abs() <= epsilon );
+        assert!( (sv1.vec_get(14) - 0.14).abs() <= epsilon );
+        assert!( (sv1.vec_get(16) - 0.57).abs() <= epsilon );
+        assert_eq!( sv1.len(), 4);
+    }
 
-    //   1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16
-    // [0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.97,0.00,0.24,0.00,0.00]
-    let mut sv2 = SparseVector::new();
-    sv2.vec_set(12, 0.97);
-    sv2.vec_set(14, 0.24);
+    #[test]
+    fn test_sparse_vector_dot() {
+        //   1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16
+        // [0.00,0.00,0.00,0.00,0.57,0.00,0.00,0.00,0.00,0.00,0.00,0.57,0.00,0.14,0.00,0.57]
+        let mut sv1 = SparseVector::new();
+        sv1.vec_set(5, 0.57);
+        sv1.vec_set(12, 0.57);
+        sv1.vec_set(14, 0.14);
+        sv1.vec_set(16, 0.57);
 
-    let res = sv1.vec_dot(&sv2);
-    assert!((res - 0.59).abs() <= 0.005);
+        //   1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16
+        // [0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.97,0.00,0.24,0.00,0.00]
+        let mut sv2 = SparseVector::new();
+        sv2.vec_set(12, 0.97);
+        sv2.vec_set(14, 0.24);
+
+        let res = sv1.vec_dot(&sv2);
+        assert!((res - 0.59).abs() <= 0.005);
+    }
+
 }

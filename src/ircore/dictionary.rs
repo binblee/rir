@@ -83,39 +83,44 @@ impl Dictionary {
     }
 }
 
-#[test]
-fn test_dictionary() {
-    let mut dict = Dictionary::new();
-    let mut id = dict.add("one");
-    assert_eq!(id, 1);
-    id = dict.add("two");
-    assert_eq!(id, 2);
-    id = dict.add("three");
-    assert_eq!(id, 3);
-    assert_eq!(dict.get("one"), Some(1));
-    assert_eq!(dict.get("two"), Some(2));
-    assert_eq!(dict.get("three"), Some(3));
-    assert_eq!(dict.get("do-not-exist"), None);
-    assert_eq!(dict.get_ids(&vec!["one", "three", "two"]), (vec![1,3,2], vec![]));
-    assert_eq!(dict.get_ids(&vec!["one", "three", "two", "four"]), (vec![1,3,2], vec!["four".to_string()]));
-    assert_eq!(dict.get_term_by_id(1), "one");
-    assert_eq!(dict.get_term_by_id(2), "two");
-    assert_eq!(dict.get_term_by_id(3), "three");
-    assert_eq!(dict.get_term_by_id(4), "");
-    assert_eq!(dict.get_term_count(), 3);
-    assert_eq!(dict.generate_ids(&vec!["alpha","beta"]),vec![4,5]);
-    assert_eq!(dict.get_ids(&vec!["one", "three", "two"]), (vec![1,3,2], vec![]));
-    assert_eq!(dict.get_ids(&vec!["one", "three", "two", "four"]), (vec![1,3,2], vec!["four".to_string()]));
-    assert_eq!(dict.get_term_by_id(1), "one");
-    assert_eq!(dict.get_term_by_id(2), "two");
-    assert_eq!(dict.get_term_by_id(3), "three");
-    assert_eq!(dict.get_term_by_id(4), "alpha");
-    assert_eq!(dict.get("one"), Some(1));
-    assert_eq!(dict.get("two"), Some(2));
-    assert_eq!(dict.get("three"), Some(3));
-    assert_eq!(dict.get("alpha"), Some(4));
-    assert_eq!(dict.get("beta"), Some(5));
-    assert_eq!(dict.get("do-not-exist"), None);
-    assert_eq!(dict.get_term_count(), 5);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_dictionary() {
+        let mut dict = Dictionary::new();
+        let mut id = dict.add("one");
+        assert_eq!(id, 1);
+        id = dict.add("two");
+        assert_eq!(id, 2);
+        id = dict.add("three");
+        assert_eq!(id, 3);
+        assert_eq!(dict.get("one"), Some(1));
+        assert_eq!(dict.get("two"), Some(2));
+        assert_eq!(dict.get("three"), Some(3));
+        assert_eq!(dict.get("do-not-exist"), None);
+        assert_eq!(dict.get_ids(&vec!["one", "three", "two"]), (vec![1,3,2], vec![]));
+        assert_eq!(dict.get_ids(&vec!["one", "three", "two", "four"]), (vec![1,3,2], vec!["four".to_string()]));
+        assert_eq!(dict.get_term_by_id(1), "one");
+        assert_eq!(dict.get_term_by_id(2), "two");
+        assert_eq!(dict.get_term_by_id(3), "three");
+        assert_eq!(dict.get_term_by_id(4), "");
+        assert_eq!(dict.get_term_count(), 3);
+        assert_eq!(dict.generate_ids(&vec!["alpha","beta"]),vec![4,5]);
+        assert_eq!(dict.get_ids(&vec!["one", "three", "two"]), (vec![1,3,2], vec![]));
+        assert_eq!(dict.get_ids(&vec!["one", "three", "two", "four"]), (vec![1,3,2], vec!["four".to_string()]));
+        assert_eq!(dict.get_term_by_id(1), "one");
+        assert_eq!(dict.get_term_by_id(2), "two");
+        assert_eq!(dict.get_term_by_id(3), "three");
+        assert_eq!(dict.get_term_by_id(4), "alpha");
+        assert_eq!(dict.get("one"), Some(1));
+        assert_eq!(dict.get("two"), Some(2));
+        assert_eq!(dict.get("three"), Some(3));
+        assert_eq!(dict.get("alpha"), Some(4));
+        assert_eq!(dict.get("beta"), Some(5));
+        assert_eq!(dict.get("do-not-exist"), None);
+        assert_eq!(dict.get_term_count(), 5);
 
+    }
 }

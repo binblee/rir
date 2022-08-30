@@ -553,273 +553,273 @@ impl SchemaDependIndex for PositionList {
 
 }
 
-#[test]
-fn test_index_from_string(){
-    let mut idx = PositionList::new();
-    use super::dictionary::{Dictionary};
-    let mut dict = Dictionary::new();
-    let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
-    let mut doc_id = idx.build_from(&term_ids);
-    /*
-    PositionList { 
-        dict: Dictionary { term_ids: {"hello": 1, "世": 3, "好": 6, "界": 4, "world": 2, "你": 5}, next_id: 7 }, 
-        postings_lists: {1: [Posting { doc_id: 1, term_frequency: 2, positions: [1, 3] }], 5: [Posting { doc_id: 1, term_frequency: 2, positions: [6, 8] }], 6: [Posting { doc_id: 1, term_frequency: 2, positions: [7, 9] }], 3: [Posting { doc_id: 1, term_frequency: 1, positions: [4] }], 2: [Posting { doc_id: 1, term_frequency: 1, positions: [2] }], 4: [Posting { doc_id: 1, term_frequency: 1, positions: [5] }]}, 
-        next_doc_id: 2, 
-        document_frequency: {1: 1, 6: 1, 4: 1, 2: 1, 3: 1, 5: 1}, 
-        term_frequency: {(3, 1): 1, (1, 1): 2, (2, 1): 1, (4, 1): 1, (6, 1): 2, (5, 1): 2}, 
-        document_length: {1: 9}, 
-        total_document_length: 9, 
-        average_document_length: 9.0, 
-        document_count: 1 
-    }
-    */
-    assert_eq!(doc_id, 1);
-    assert_eq!(dict.get_term_count(), 6);
-    assert_eq!(idx.postings_lists.len(), dict.get_term_count());
-    assert_eq!(idx.document_frequency.len(), dict.get_term_count());
-    assert_eq!(idx.term_frequency.len(), 6);
-    assert_eq!(idx.total_document_length, 9);
-    assert_eq!(idx.average_document_length, 9.0);
-    assert_eq!(idx.document_count,1);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::dictionary::Dictionary;
 
-    term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
-    doc_id = idx.build_from(&term_ids);
-    /*
-    PositionList { 
-        dict: Dictionary { term_ids: {"天": 8, "你": 5, "明": 7, "hello": 1, "世": 3, "好": 6, "界": 4, "world": 2}, next_id: 9 }, 
-        postings_lists: {1: [Posting { doc_id: 1, term_frequency: 2, positions: [1, 3] }], 3: [Posting { doc_id: 1, term_frequency: 1, positions: [4] }], 4: [Posting { doc_id: 1, term_frequency: 1, positions: [5] }], 7: [Posting { doc_id: 2, term_frequency: 1, positions: [3] }], 5: [Posting { doc_id: 1, term_frequency: 2, positions: [6, 8] }, Posting { doc_id: 2, term_frequency: 1, positions: [1] }], 6: [Posting { doc_id: 1, term_frequency: 2, positions: [7, 9] }, Posting { doc_id: 2, term_frequency: 1, positions: [2] }], 8: [Posting { doc_id: 2, term_frequency: 1, positions: [4] }], 2: [Posting { doc_id: 1, term_frequency: 1, positions: [2] }]}, 
-        next_doc_id: 3, 
-        document_frequency: {6: 2, 4: 1, 3: 1, 1: 1, 8: 1, 5: 2, 2: 1, 7: 1}, 
-        term_frequency: {(8, 2): 1, (3, 1): 1, (4, 1): 1, (7, 2): 1, (5, 2): 1, (1, 1): 2, (2, 1): 1, (6, 1): 2, (6, 2): 1, (5, 1): 2}, 
-        document_length: {2: 4, 1: 9}, 
-        total_document_length: 13, 
-        average_document_length: 6.5, 
-        document_count: 2 }    
-    */
-    assert_eq!(doc_id, 2);    
-    assert_eq!(dict.get_term_count(), 8);
-    assert_eq!(idx.postings_lists.len(), dict.get_term_count());
-    assert_eq!(idx.document_frequency.len(), dict.get_term_count());
-    assert_eq!(idx.term_frequency.len(), 10);
-    assert_eq!(idx.total_document_length, 13);
-    assert_eq!(idx.average_document_length, 6.5);
-    assert_eq!(idx.document_count,2);
+    #[test]
+    fn test_index_from_string(){
+        let mut idx = PositionList::new();
+        let mut dict = Dictionary::new();
+        let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
+        let mut doc_id = idx.build_from(&term_ids);
+        /*
+        PositionList { 
+            dict: Dictionary { term_ids: {"hello": 1, "世": 3, "好": 6, "界": 4, "world": 2, "你": 5}, next_id: 7 }, 
+            postings_lists: {1: [Posting { doc_id: 1, term_frequency: 2, positions: [1, 3] }], 5: [Posting { doc_id: 1, term_frequency: 2, positions: [6, 8] }], 6: [Posting { doc_id: 1, term_frequency: 2, positions: [7, 9] }], 3: [Posting { doc_id: 1, term_frequency: 1, positions: [4] }], 2: [Posting { doc_id: 1, term_frequency: 1, positions: [2] }], 4: [Posting { doc_id: 1, term_frequency: 1, positions: [5] }]}, 
+            next_doc_id: 2, 
+            document_frequency: {1: 1, 6: 1, 4: 1, 2: 1, 3: 1, 5: 1}, 
+            term_frequency: {(3, 1): 1, (1, 1): 2, (2, 1): 1, (4, 1): 1, (6, 1): 2, (5, 1): 2}, 
+            document_length: {1: 9}, 
+            total_document_length: 9, 
+            average_document_length: 9.0, 
+            document_count: 1 
+        }
+        */
+        assert_eq!(doc_id, 1);
+        assert_eq!(dict.get_term_count(), 6);
+        assert_eq!(idx.postings_lists.len(), dict.get_term_count());
+        assert_eq!(idx.document_frequency.len(), dict.get_term_count());
+        assert_eq!(idx.term_frequency.len(), 6);
+        assert_eq!(idx.total_document_length, 9);
+        assert_eq!(idx.average_document_length, 9.0);
+        assert_eq!(idx.document_count,1);
 
-    // test getter functions
-    assert_eq!(idx.get_term_occurences_num(2), 1); //world
-    assert_eq!(idx.get_term_occurences_num(1), 2); //hello
-    assert_eq!(idx.get_term_occurences_num(6), 3); //好
-    assert_eq!(idx.get_term_occurences_num(7), 1); //明
-}
+        term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
+        doc_id = idx.build_from(&term_ids);
+        /*
+        PositionList { 
+            dict: Dictionary { term_ids: {"天": 8, "你": 5, "明": 7, "hello": 1, "世": 3, "好": 6, "界": 4, "world": 2}, next_id: 9 }, 
+            postings_lists: {1: [Posting { doc_id: 1, term_frequency: 2, positions: [1, 3] }], 3: [Posting { doc_id: 1, term_frequency: 1, positions: [4] }], 4: [Posting { doc_id: 1, term_frequency: 1, positions: [5] }], 7: [Posting { doc_id: 2, term_frequency: 1, positions: [3] }], 5: [Posting { doc_id: 1, term_frequency: 2, positions: [6, 8] }, Posting { doc_id: 2, term_frequency: 1, positions: [1] }], 6: [Posting { doc_id: 1, term_frequency: 2, positions: [7, 9] }, Posting { doc_id: 2, term_frequency: 1, positions: [2] }], 8: [Posting { doc_id: 2, term_frequency: 1, positions: [4] }], 2: [Posting { doc_id: 1, term_frequency: 1, positions: [2] }]}, 
+            next_doc_id: 3, 
+            document_frequency: {6: 2, 4: 1, 3: 1, 1: 1, 8: 1, 5: 2, 2: 1, 7: 1}, 
+            term_frequency: {(8, 2): 1, (3, 1): 1, (4, 1): 1, (7, 2): 1, (5, 2): 1, (1, 1): 2, (2, 1): 1, (6, 1): 2, (6, 2): 1, (5, 1): 2}, 
+            document_length: {2: 4, 1: 9}, 
+            total_document_length: 13, 
+            average_document_length: 6.5, 
+            document_count: 2 }    
+        */
+        assert_eq!(doc_id, 2);    
+        assert_eq!(dict.get_term_count(), 8);
+        assert_eq!(idx.postings_lists.len(), dict.get_term_count());
+        assert_eq!(idx.document_frequency.len(), dict.get_term_count());
+        assert_eq!(idx.term_frequency.len(), 10);
+        assert_eq!(idx.total_document_length, 13);
+        assert_eq!(idx.average_document_length, 6.5);
+        assert_eq!(idx.document_count,2);
 
-#[test]
-fn test_docs_contain_term() {
-    let mut idx = PositionList::new();
-    use super::dictionary::{Dictionary};
-    let mut dict = Dictionary::new();
-    let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
-    let mut doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 1);
-    term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 2);
-    // contain all
-    let mut term_ids = vec![1,6];
-    let mut doc_set = idx.docs_contain_all(&term_ids);
-    assert_eq!(term_ids, vec![1,6]); //should be untouched
-    assert_eq!(Some(HashSet::from([1])), doc_set);
-    // contain one term
-    doc_set = idx.docs(6);
-    assert_eq!(Some(HashSet::from([1,2])), doc_set);
-    // contain any
-    term_ids = vec![7];
-    let doc_set = idx.docs_contain_any(&term_ids);
-    assert_eq!(doc_set, HashSet::from([2]));
-    term_ids = vec![7, 5];
-    let doc_set = idx.docs_contain_any(&term_ids);
-    assert_eq!(doc_set, HashSet::from([1, 2]));
-    // invalid term id
-    term_ids = vec![100];
-    let doc_set = idx.docs_contain_any(&term_ids);
-    assert_eq!(doc_set.len(), 0);
-    term_ids = vec![7,100,7];
-    let doc_set = idx.docs_contain_any(&term_ids);
-    assert_eq!(doc_set, HashSet::from([2]));
-
-}
-
-#[test]
-fn test_prhase() {
-    let mut idx = PositionList::new();
-    use super::dictionary::{Dictionary};
-    let mut dict = Dictionary::new();
-    let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
-    let mut doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 1);
-    term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 2);
-    let mut res=0;
-    if let Some(pos) = idx.first(1, 1){
-        res = pos;
-        assert_eq!(pos, 1);
-    }
-    if let Some(pos) = idx.next(1, 1, res){
-        res = pos;
-        assert_eq!(pos, 3);
+        // test getter functions
+        assert_eq!(idx.get_term_occurences_num(2), 1); //world
+        assert_eq!(idx.get_term_occurences_num(1), 2); //hello
+        assert_eq!(idx.get_term_occurences_num(6), 3); //好
+        assert_eq!(idx.get_term_occurences_num(7), 1); //明
     }
 
-    if let Some(pos) = idx.last(1, 1){
-        res = pos;
-        assert_eq!(pos, 3);
+    #[test]
+    fn test_docs_contain_term() {
+        let mut idx = PositionList::new();
+        let mut dict = Dictionary::new();
+        let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
+        let mut doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 1);
+        term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 2);
+        // contain all
+        let mut term_ids = vec![1,6];
+        let mut doc_set = idx.docs_contain_all(&term_ids);
+        assert_eq!(term_ids, vec![1,6]); //should be untouched
+        assert_eq!(Some(HashSet::from([1])), doc_set);
+        // contain one term
+        doc_set = idx.docs(6);
+        assert_eq!(Some(HashSet::from([1,2])), doc_set);
+        // contain any
+        term_ids = vec![7];
+        let doc_set = idx.docs_contain_any(&term_ids);
+        assert_eq!(doc_set, HashSet::from([2]));
+        term_ids = vec![7, 5];
+        let doc_set = idx.docs_contain_any(&term_ids);
+        assert_eq!(doc_set, HashSet::from([1, 2]));
+        // invalid term id
+        term_ids = vec![100];
+        let doc_set = idx.docs_contain_any(&term_ids);
+        assert_eq!(doc_set.len(), 0);
+        term_ids = vec![7,100,7];
+        let doc_set = idx.docs_contain_any(&term_ids);
+        assert_eq!(doc_set, HashSet::from([2]));
+
     }
-    if let Some(pos) = idx.prev(1, 1, res){
-        assert_eq!(pos, 1);
+
+    #[test]
+    fn test_prhase() {
+        let mut idx = PositionList::new();
+        let mut dict = Dictionary::new();
+        let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
+        let mut doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 1);
+        term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 2);
+        let mut res=0;
+        if let Some(pos) = idx.first(1, 1){
+            res = pos;
+            assert_eq!(pos, 1);
+        }
+        if let Some(pos) = idx.next(1, 1, res){
+            res = pos;
+            assert_eq!(pos, 3);
+        }
+
+        if let Some(pos) = idx.last(1, 1){
+            res = pos;
+            assert_eq!(pos, 3);
+        }
+        if let Some(pos) = idx.prev(1, 1, res){
+            assert_eq!(pos, 1);
+        }
+
+        let docs = idx.docs_contain_all(&vec![5,6]);
+        assert_eq!(docs, Some(HashSet::from([1,2])));
+        let mut phrase_start_end = idx.all_phrase(1, &vec![5,6]);
+        assert_eq!(phrase_start_end, vec![(6, 7), (8, 9)]);
+        phrase_start_end = idx.all_phrase(2, &vec![5,6]);
+        assert_eq!(phrase_start_end, vec![(1, 2)]);
     }
 
-    let docs = idx.docs_contain_all(&vec![5,6]);
-    assert_eq!(docs, Some(HashSet::from([1,2])));
-    let mut phrase_start_end = idx.all_phrase(1, &vec![5,6]);
-    assert_eq!(phrase_start_end, vec![(6, 7), (8, 9)]);
-    phrase_start_end = idx.all_phrase(2, &vec![5,6]);
-    assert_eq!(phrase_start_end, vec![(1, 2)]);
-}
+    #[test]
+    fn test_search_phrase() {
+        let mut idx = PositionList::new();
+        let mut dict = Dictionary::new();
+        let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
+        let mut doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 1);
+        term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 2);
 
-#[test]
-fn test_search_phrase() {
-    let mut idx = PositionList::new();
-    use super::dictionary::{Dictionary};
-    let mut dict = Dictionary::new();
-    let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
-    let mut doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 1);
-    term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 2);
+        // let mut phrase_in_tokens = vec!["你", "好"];
+        let mut term_ids = vec![5, 6]; // vec!["你", "好"];
+        let mut docs = idx.search_phrase(&term_ids);
+        assert_eq!(docs.len(), 2);
+        assert_eq!(term_ids.len(),2);
 
-    // let mut phrase_in_tokens = vec!["你", "好"];
-    let mut term_ids = vec![5, 6]; // vec!["你", "好"];
-    let mut docs = idx.search_phrase(&term_ids);
-    assert_eq!(docs.len(), 2);
-    assert_eq!(term_ids.len(),2);
+        term_ids = vec![5]; // vec!["你"];
+        docs = idx.search_phrase(&term_ids);
+        assert_eq!(docs.len(), 2);
+        assert_eq!(term_ids.len(),1);
 
-    term_ids = vec![5]; // vec!["你"];
-    docs = idx.search_phrase(&term_ids);
-    assert_eq!(docs.len(), 2);
-    assert_eq!(term_ids.len(),1);
+    }
 
-}
+    #[test]
+    fn test_vector_space_model(){
+        let mut idx = PositionList::new();
+        let mut dict = Dictionary::new();
+        let mut term_ids = dict.generate_ids(&vec!["do", "you", "quarrel", "sir"]);
+        let mut doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 1);
+        term_ids = dict.generate_ids(&vec!["quarrel", "sir", "no", "sir"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 2);
+        term_ids = dict.generate_ids(&vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
+        "i", "serve", "as", "good", "a", "man", "as", "you"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 3);
+        term_ids = dict.generate_ids(&vec!["no", "better"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 4);
+        term_ids = dict.generate_ids(&vec!["well", "sir"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 5);
+        assert!(idx.is_valid_doc_id(0) == false);
+        let tfidf_ok = idx.compute_tf_idf();
+        assert_eq!(idx.document_count, idx.document_length.len());
+        assert_eq!(tfidf_ok, Ok(()));
+        let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
+        let docs = idx.rank_cosine(&term_ids);
+        assert_eq!(term_ids.len(), 2);
+        assert_eq!(docs.len(), 4);
+        // DocumentID 1    2    3    4    5
+        // Similarity 0.59 0.73 0.01 0.00 0.03
+        let epsilon = 0.005;
+        assert_eq!( docs[0].docid, 2 );
+        assert!( (docs[0].score - 0.73).abs() <= epsilon );
+        assert_eq!( docs[1].docid, 1 );
+        assert!( (docs[1].score - 0.59).abs() <= epsilon );
+        assert_eq!( docs[2].docid, 5 );
+        assert!( (docs[2].score - 0.03).abs() <= epsilon );
+        assert_eq!( docs[3].docid, 3 );
+        assert!( (docs[3].score - 0.01).abs() <= epsilon );
+    }
 
-#[test]
-fn test_vector_space_model(){
-    let mut idx = PositionList::new();
-    use super::dictionary::{Dictionary};
-    let mut dict = Dictionary::new();
-    let mut term_ids = dict.generate_ids(&vec!["do", "you", "quarrel", "sir"]);
-    let mut doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 1);
-    term_ids = dict.generate_ids(&vec!["quarrel", "sir", "no", "sir"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 2);
-    term_ids = dict.generate_ids(&vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
-    "i", "serve", "as", "good", "a", "man", "as", "you"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 3);
-    term_ids = dict.generate_ids(&vec!["no", "better"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 4);
-    term_ids = dict.generate_ids(&vec!["well", "sir"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 5);
-    assert!(idx.is_valid_doc_id(0) == false);
-    let tfidf_ok = idx.compute_tf_idf();
-    assert_eq!(idx.document_count, idx.document_length.len());
-    assert_eq!(tfidf_ok, Ok(()));
-    let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
-    let docs = idx.rank_cosine(&term_ids);
-    assert_eq!(term_ids.len(), 2);
-    assert_eq!(docs.len(), 4);
-    // DocumentID 1    2    3    4    5
-    // Similarity 0.59 0.73 0.01 0.00 0.03
-    let epsilon = 0.005;
-    assert_eq!( docs[0].docid, 2 );
-    assert!( (docs[0].score - 0.73).abs() <= epsilon );
-    assert_eq!( docs[1].docid, 1 );
-    assert!( (docs[1].score - 0.59).abs() <= epsilon );
-    assert_eq!( docs[2].docid, 5 );
-    assert!( (docs[2].score - 0.03).abs() <= epsilon );
-    assert_eq!( docs[3].docid, 3 );
-    assert!( (docs[3].score - 0.01).abs() <= epsilon );
-}
+    #[test]
+    fn test_rank_bm25(){
+        let mut idx = PositionList::new();
+        let mut dict = Dictionary::new();
+        let mut term_ids = dict.generate_ids(&vec!["do", "you", "quarrel", "sir"]);
+        let mut doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 1);
+        term_ids = dict.generate_ids(&vec!["quarrel", "sir", "no", "sir"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 2);
+        term_ids = dict.generate_ids(&vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
+        "i", "serve", "as", "good", "a", "man", "as", "you"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 3);
+        term_ids = dict.generate_ids(&vec!["no", "better"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 4);
+        term_ids = dict.generate_ids(&vec!["well", "sir"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 5);
+        assert!(idx.is_valid_doc_id(0) == false);
+        let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
+        let docs = idx.rank_bm25(&term_ids);
+        assert_eq!(docs.len(), 4);
+        assert_eq!(term_ids.len(),2); // unchanged
+        // DocumentID 2    1    5    3
+        // Score      1.98 1.86 0.44 0.18
+        let epsilon = 0.005;
+        assert_eq!( docs[0].docid, 2 );
+        assert!( (docs[0].score - 1.98).abs() <= epsilon );
+        assert_eq!( docs[1].docid, 1 );
+        assert!( (docs[1].score - 1.86).abs() <= epsilon );
+        assert_eq!( docs[2].docid, 5 );
+        assert!( (docs[2].score - 0.44).abs() <= epsilon );
+        assert_eq!( docs[3].docid, 3 );
+        assert!( (docs[3].score - 0.18).abs() <= epsilon );
 
-#[test]
-fn test_rank_bm25(){
-    let mut idx = PositionList::new();
-    use super::dictionary::{Dictionary};
-    let mut dict = Dictionary::new();
-    let mut term_ids = dict.generate_ids(&vec!["do", "you", "quarrel", "sir"]);
-    let mut doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 1);
-    term_ids = dict.generate_ids(&vec!["quarrel", "sir", "no", "sir"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 2);
-    term_ids = dict.generate_ids(&vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
-    "i", "serve", "as", "good", "a", "man", "as", "you"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 3);
-    term_ids = dict.generate_ids(&vec!["no", "better"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 4);
-    term_ids = dict.generate_ids(&vec!["well", "sir"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 5);
-    assert!(idx.is_valid_doc_id(0) == false);
-    let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
-    let docs = idx.rank_bm25(&term_ids);
-    assert_eq!(docs.len(), 4);
-    assert_eq!(term_ids.len(),2); // unchanged
-    // DocumentID 2    1    5    3
-    // Score      1.98 1.86 0.44 0.18
-    let epsilon = 0.005;
-    assert_eq!( docs[0].docid, 2 );
-    assert!( (docs[0].score - 1.98).abs() <= epsilon );
-    assert_eq!( docs[1].docid, 1 );
-    assert!( (docs[1].score - 1.86).abs() <= epsilon );
-    assert_eq!( docs[2].docid, 5 );
-    assert!( (docs[2].score - 0.44).abs() <= epsilon );
-    assert_eq!( docs[3].docid, 3 );
-    assert!( (docs[3].score - 0.18).abs() <= epsilon );
+    }
 
-}
-
-#[test]
-fn test_rank_lmd() {
-    let mut idx = PositionList::new();
-    use super::dictionary::{Dictionary};
-    let mut dict = Dictionary::new();
-    let mut term_ids = dict.generate_ids(&vec!["do", "you", "quarrel", "sir"]);
-    let mut doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 1);
-    term_ids = dict.generate_ids(&vec!["quarrel", "sir", "no", "sir"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 2);
-    term_ids = dict.generate_ids(&vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
-    "i", "serve", "as", "good", "a", "man", "as", "you"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 3);
-    term_ids = dict.generate_ids(&vec!["no", "better"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 4);
-    term_ids = dict.generate_ids(&vec!["well", "sir"]);
-    doc_id = idx.build_from(&term_ids);
-    assert_eq!(doc_id, 5);
-    assert!(idx.is_valid_doc_id(0) == false);
-    let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
-    let docs = idx.rank_lmd(&term_ids);
-    assert_eq!(docs.len(), 4);
-    assert_eq!(term_ids.len(),2); // unchanged
-    // doc 1 score should be 1.25
-    let docs_subset:Vec<DocScore> = docs.into_iter().filter(|doc| doc.docid == 1).collect();
-    let epsilon = 0.005;
-    assert!((docs_subset[0].score - 1.25).abs() < epsilon);
+    #[test]
+    fn test_rank_lmd() {
+        let mut idx = PositionList::new();
+        let mut dict = Dictionary::new();
+        let mut term_ids = dict.generate_ids(&vec!["do", "you", "quarrel", "sir"]);
+        let mut doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 1);
+        term_ids = dict.generate_ids(&vec!["quarrel", "sir", "no", "sir"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 2);
+        term_ids = dict.generate_ids(&vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
+        "i", "serve", "as", "good", "a", "man", "as", "you"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 3);
+        term_ids = dict.generate_ids(&vec!["no", "better"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 4);
+        term_ids = dict.generate_ids(&vec!["well", "sir"]);
+        doc_id = idx.build_from(&term_ids);
+        assert_eq!(doc_id, 5);
+        assert!(idx.is_valid_doc_id(0) == false);
+        let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
+        let docs = idx.rank_lmd(&term_ids);
+        assert_eq!(docs.len(), 4);
+        assert_eq!(term_ids.len(),2); // unchanged
+        // doc 1 score should be 1.25
+        let docs_subset:Vec<DocScore> = docs.into_iter().filter(|doc| doc.docid == 1).collect();
+        let epsilon = 0.005;
+        assert!((docs_subset[0].score - 1.25).abs() < epsilon);
+    }
+    
 }

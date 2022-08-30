@@ -16,3 +16,24 @@ pub fn binary_search(
     }
     retval_fn(low_index, high_index)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_binary_search() {
+        let positions = vec![5, 20, 35, 50];
+        let target = binary_search(&positions, 0, positions.len() -1 ,
+            19, 
+            |v1, v2 | v1 <= v2, 
+            |_, v2 | v2);
+        assert_eq!(target, 1);
+
+        let target = binary_search(&positions, 0, positions.len() -1 ,
+            19, 
+            |v1, v2 | v1 < v2, 
+            |v1, _ | v1);
+        assert_eq!(target, 0);
+    }
+}

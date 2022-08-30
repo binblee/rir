@@ -20,3 +20,15 @@ impl Document {
         &self.path
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_document() {
+        let doc = Document::new("content: String".to_string(), "path: String".to_string());
+        assert_eq!(doc.get_content(), "content: String");
+        assert_eq!(doc.get_path(), "path: String");
+    }
+}
