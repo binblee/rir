@@ -66,6 +66,8 @@ pub trait SchemaDependIndex {
     fn search_phrase(&self, phrase: &Vec<TermId>) -> Vec<DocScore>;
     // TF-IDF compute
     fn compute_tf_idf(&mut self) -> Result<(),()>;
+    fn get_doc_tfidf_vector(&self, doc: DocId) -> &SparseVector;
+    fn get_phrase_tfidf_vector(&self, phrase: &Vec<TermId>) -> Box<SparseVector>;
     fn rank_cosine(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
     // BM25
     fn rank_bm25(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
@@ -383,6 +385,11 @@ impl SchemaDependIndex for PositionList {
         scores
     }
 
+    // TF = log(ftd) + 1 if ftd > 0, 0 otherwise
+    // IDF = log(N/Nt)
+    //   ftd: inverted term document frequency (document_frequency[doc_id])
+    //   N: total count of document (term_frequency[term_id, doc_id])
+    //   Nt: total count of document that contain term t (document_count)
     fn compute_tf_idf(&mut self) -> Result<(),()>{
         assert_eq!(self.document_count, self.document_length.len());
         for _ in 0..self.document_count {
@@ -403,14 +410,20 @@ impl SchemaDependIndex for PositionList {
         }
         Ok(())
     }
-    fn rank_cosine(&self, term_ids: &Vec<TermId>) -> Vec<DocScore> {
-        let mut scores = vec![];
-        if term_ids.len() == 0 {
-            return scores;
-        }
-        // compute query string's TF-IDF vector
+
+    // TF = log(ftd) + 1 if ftd > 0, 0 otherwise
+    // IDF = log(N/Nt)
+    //   ftd: inverted term document frequency (document_frequency[doc_id])
+    //   N: total count of document (term_frequency[term_id, doc_id])
+    //   Nt: total count of document that contain term t (document_count)
+    fn get_doc_tfidf_vector(&self, doc: DocId) -> &SparseVector {
+        &self.tf_idf_matrix[doc as usize]
+    }
+
+    // compute query string's TF-IDF vector
+    fn get_phrase_tfidf_vector(&self, terms: &Vec<TermId>) -> Box<SparseVector> {
         let mut query_term_freq:HashMap<TermId, u32> = HashMap::new();
-        for &tid in term_ids {
+        for &tid in terms {
             query_term_freq.entry(tid)
                 .and_modify(|count| *count += 1)
                 .or_insert(1);
@@ -423,12 +436,21 @@ impl SchemaDependIndex for PositionList {
             query_tfidf.vec_set(tid, term_tfidf);
         }
         query_tfidf.vec_normalize();
+        Box::new(query_tfidf)
+    }
+    
+    // dot product between document and query vectors of TF-IDF
+    fn rank_cosine(&self, term_ids: &Vec<TermId>) -> Vec<DocScore> {
+        let mut scores = vec![];
+        if term_ids.len() == 0 {
+            return scores;
+        }
+        let query_tfidf = self.get_phrase_tfidf_vector(term_ids);
         // go through all documents that contains at least one term
-        let docs_contain_any = self.docs_contain_any(&term_ids);
-        for doc_id in docs_contain_any {
+        for doc_id in self.docs_contain_any(&term_ids) {
             if self.is_valid_doc_id(doc_id){
-                let doc_tfidf = &self.tf_idf_matrix[doc_id as usize];
-                let vec_distance = query_tfidf.vec_dot(doc_tfidf);
+                let doc_tfidf_vec = self.get_doc_tfidf_vector(doc_id);
+                let vec_distance = query_tfidf.vec_dot(&doc_tfidf_vec);
                 scores.push(DocScore{docid: doc_id, score: vec_distance});
             }
         }
@@ -440,11 +462,11 @@ impl SchemaDependIndex for PositionList {
     // The BM25 algorithm
     // for all term t sum qt * ftd*(k1+1)/(k1*(1-b+b*(ld/lvag)) + ftd) * log(N/Nt)
     //   qt: query term frequency
-    //   ftd: inverted term document frequency, document_length[doc_id]
+    //   ftd: inverted term document frequency (document_frequency[doc_id])
     //   k1: weight saturation factor, default 1.2
     //   b: level of normalization of document length, default 0.75
-    //   N: total count of document
-    //   Nt: total count of document that contain term t
+    //   N: total count of document (term_frequency[term_id, doc_id])
+    //   Nt: total count of document that contain term t (document_count)
     fn rank_bm25(&self, term_ids: &Vec<TermId>) -> Vec<DocScore> {
         let mut scores = vec![];
         if term_ids.len() == 0 {
