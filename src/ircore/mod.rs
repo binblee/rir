@@ -7,3 +7,4 @@ pub mod common;
 pub mod doc;
 pub mod query;
 pub mod utils;
+pub mod ranking;

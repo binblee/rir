@@ -3,19 +3,33 @@ use std::cmp::Reverse;
 use serde::{Serialize, Deserialize};
 use super::utils::sparse_vector::{SparseVector, SparseVectorOp};
 use super::dictionary::Dictionary;
-use super::common::{DocId, TermId, TermOffset, RankingAlgorithm};
-use super::utils::binary_search::binary_search;
+use super::common::{DocId, TermId, TermOffset};
 
+type Positions = Vec<TermOffset>;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Posting {
     doc_id: DocId,
     term_frequency: u32,
-    positions: Vec<TermOffset>,
+    positions: Positions,
 }
+
+impl Posting {
+    pub fn get_doc_id(&self) -> DocId {
+        self.doc_id
+    }
+    pub fn get_positions(&self) -> &Positions {
+        &self.positions
+    }
+}
+
+
+type PositingList = HashMap<TermId, Vec<Posting>>;
+
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PositionList {
     // document list,  termid -> positions
-    postings_lists: HashMap<TermId, Vec<Posting>>,
+    postings_lists: PositingList,
     next_doc_id: DocId,
     // the number of documents in the collection containing the term (id)
     document_frequency: HashMap<TermId, u32>,
@@ -47,8 +61,22 @@ pub trait SchemaDependIndex {
     fn new() -> Self;
     fn build_from(&mut self, term_ids: &Vec<TermId>) -> DocId;
     fn next_doc_id(&mut self) -> DocId;
+    // getters
+    // get: positition list for one term in doc
+    fn get_positions(&self, term: TermId, doc: DocId) -> Option<&Positions>;
     // get: number of term occurences in whole collection
     fn get_term_occurences_num(&self, term: TermId) -> u32;
+    // get: total number of document
+    fn get_document_count(&self) -> usize;
+    // get: average document length
+    fn get_average_document_length(&self) -> f32;
+    // get: document length
+    fn get_document_length(&self, doc: DocId) -> u32;
+    // get: term frequency in specified document
+    fn get_term_frequency(&self, term: TermId, doc: DocId) -> Option<&u32>;
+    // get: the number of documents in the collection containing the term (id)
+    fn get_document_frequency(&self, term: TermId) -> Option<&u32>;
+
     // docs contain the term
     fn docs(&self, term_id: TermId) -> Option<HashSet<DocId>>; 
     // docs contain all terms
@@ -56,32 +84,12 @@ pub trait SchemaDependIndex {
     // docs contain any of the terms
     fn docs_contain_any(&self, term_list: &Vec<TermId>) -> HashSet<DocId>;
     fn is_valid_doc_id(&self, doc_id: DocId) -> bool;
-    // get term positions (for phrase search)
-    fn first(&self, doc:DocId, term:TermId) -> Option<TermOffset>;
-    fn next(&self, doc:DocId, term:TermId, after_position:TermOffset) -> Option<TermOffset>;
-    fn last(&self, doc:DocId, term:TermId) -> Option<TermOffset>;
-    fn prev(&self, doc:DocId, term:TermId, before_position:TermOffset) -> Option<TermOffset>;
-    fn next_phrase(&self, doc:DocId, phrase: &Vec<TermId>, position:TermOffset) -> Option<(TermOffset, TermOffset)>;
-    fn all_phrase(&self, doc: DocId, phrase: &Vec<TermId>) -> Vec<(TermOffset, TermOffset)>;
-    fn search_phrase(&self, phrase: &Vec<TermId>) -> Vec<DocScore>;
     // TF-IDF compute
     fn compute_tf_idf(&mut self) -> Result<(),()>;
     fn get_doc_tfidf_vector(&self, doc: DocId) -> &SparseVector;
     fn get_phrase_tfidf_vector(&self, phrase: &Vec<TermId>) -> Box<SparseVector>;
-    fn rank_cosine(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
-    // BM25
-    fn rank_bm25(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
-    // LMD
-    fn rank_lmd(&self, terms: &Vec<TermId>) -> Vec<DocScore>;
     // Statistics
     fn stats(&self, dict: &Dictionary) -> IndexStats;
-    // query wrapper
-    fn query(&self, terms: &Vec<TermId>, ranking: RankingAlgorithm) -> Vec<DocScore>;
-}
-
-pub struct DocScore {
-    pub docid: DocId,
-    pub score: f32,
 }
 
 impl SchemaDependIndex for PositionList {
@@ -107,6 +115,45 @@ impl SchemaDependIndex for PositionList {
         }
         0
     }
+
+    fn get_positions(&self, term: TermId, doc: DocId) -> Option<&Positions> {
+        let posts = self.postings_lists.get(&term).unwrap();
+        for post in posts {
+            if post.get_doc_id() == doc {
+                let positions = post.get_positions();
+                assert!(positions.len()>0);
+                return Some(positions);
+            }
+        }
+        None
+    }
+
+
+    // get: total number of document
+    fn get_document_count(&self) -> usize {
+        self.document_count
+    }
+    
+    // get: average document length
+    fn get_average_document_length(&self) -> f32 {
+        self.average_document_length
+    }
+
+    // get: document length
+    fn get_document_length(&self, doc: DocId) -> u32 {
+        self.document_length[doc as usize - 1]
+    }
+
+    // get: term frequency in specified document
+    fn get_term_frequency(&self, term: TermId, doc: DocId) -> Option<&u32> {
+        self.term_frequency.get(&(term, doc))
+    }
+
+    // get: the number of documents in the collection containing the term (id)
+    fn get_document_frequency(&self, term: TermId) -> Option<&u32> {
+        self.document_frequency.get(&term)
+    }
+
 
 
     fn next_doc_id(&mut self) -> DocId {
@@ -226,165 +273,6 @@ impl SchemaDependIndex for PositionList {
         doc_id >= 1 && doc_id <= self.document_count as DocId + 1 
     }
 
-
-    fn first(&self, doc:DocId, term:TermId) -> Option<TermOffset> {
-        if self.document_frequency.contains_key(&term) {
-            let posts = &self.postings_lists.get(&term).unwrap();
-            for post in *posts {
-                if post.doc_id == doc {
-                    assert!(post.positions.len()>0);
-                    return Some(post.positions[0]);
-                }
-            }
-        }
-        None
-    }
-
-
-    fn next(&self, doc:DocId, term:TermId, after_position:TermOffset) -> Option<TermOffset> {
-        if self.document_frequency.contains_key(&term) {
-            let posts = &self.postings_lists.get(&term).unwrap();
-            for post in *posts {
-                if post.doc_id == doc {
-                    let positions = &post.positions;
-                    assert!(positions.len()>0);
-                    if *positions.last()? <= after_position {
-                        return None;
-                    }else if positions[0] > after_position {
-                        return Some(positions[0]);
-                    }else{
-                        let target = binary_search(
-                            positions, 0, positions.len()-1, after_position,
-                            |v1, v2 | v1 <= v2, 
-                            |_, v2 | v2);
-                        return Some(positions[target]);
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    fn last(&self, doc:DocId, term:TermId) -> Option<TermOffset> {
-        if self.document_frequency.contains_key(&term) {
-            let posts = &self.postings_lists.get(&term).unwrap();
-            for post in *posts {
-                if post.doc_id == doc {
-                    assert!(post.positions.len()>0);
-                    return Some(*post.positions.last()?);
-                }
-            }
-        }
-        None
-    }
-    fn prev(&self, doc:DocId, term:TermId, before_position:TermOffset) -> Option<TermOffset> {
-        if self.document_frequency.contains_key(&term) {
-            let posts = &self.postings_lists.get(&term).unwrap();
-            for post in *posts {
-                if post.doc_id == doc {
-                    let positions = &post.positions;
-                    assert!(positions.len()>0);
-                    if positions[0] >= before_position {
-                        return None;
-                    }else if *positions.last()? < before_position {
-                        return Some(*positions.last()?)
-                    }else{
-                        let target = binary_search(
-                            positions, 0, positions.len(), before_position,
-                            |v1, v2 | v1 < v2, |v1, _ | v1
-                        );
-                        return Some(positions[target]);        
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    fn next_phrase(
-        &self, doc:DocId, phrase: &Vec<TermId>, position:TermOffset) 
-        -> Option<(TermOffset, TermOffset)>{
-            if phrase.len() <= 1 {
-                return None;
-            }
-            let mut end = position;
-            for term in phrase.iter(){
-                match self.next(doc, *term, end){
-                    Some(pos) => end = pos,
-                    None => return None,
-                }
-            }
-            let mut start = end;
-            for term in phrase.iter().rev().skip(1){
-                match self.prev(doc, *term, start){
-                    Some(pos) => start = pos,
-                    None => {
-                        eprintln!("Error in reverse itration in next Phrase."); 
-                        std::process::exit(1)
-                    }
-                }
-            }
-            if start < end && end - start == (phrase.len() - 1) as TermOffset {
-                return Some((start, end));
-            }else{
-                return self.next_phrase(doc, phrase, start);
-            }
-    }
-
-    fn all_phrase(&self, doc: DocId, phrase: &Vec<TermId>) -> Vec<(TermOffset, TermOffset)> {
-        let mut result = Vec::new();
-        // one word phrase
-        if phrase.len() == 0 {
-            return result;
-        }else if phrase.len() == 1 {
-            //only one token, return all positions in this doc
-            if self.postings_lists.contains_key(&phrase[0]) {
-                let positings = self.postings_lists.get(&phrase[0]).unwrap();
-                for post in positings {
-                    //TODO binary search
-                    if post.doc_id == doc {
-                        for pos in &post.positions {
-                            result.push((*pos, *pos));
-                        }
-                        break;
-                    }
-                }
-            }else{
-                return result;
-            }
-        }
-        // phrase that have at least two words
-        let mut pos = 0;
-        loop{
-            match self.next_phrase(doc, phrase, pos) {
-                Some(r) => {
-                    result.push(r);
-                    pos = r.0;
-                },
-                None => break
-            }    
-        }
-        result
-    }
-
-    fn search_phrase(&self, term_ids: &Vec<TermId>) -> Vec<DocScore> {
-        let mut scores = vec![];
-        if let Some(doc_set) = self.docs_contain_all(&term_ids){
-            let docs_contain_all:Vec<DocId> = doc_set.into_iter().collect();
-            for doc in docs_contain_all {
-                let positions = self.all_phrase(doc, &term_ids);
-                if positions.len() > 0 {
-                    scores.push(DocScore{
-                        docid:doc,
-                        score: positions.len() as f32,
-                });
-                }
-            }
-        }
-        scores.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().reverse() );   
-        scores
-    }
-
     // TF = log(ftd) + 1 if ftd > 0, 0 otherwise
     // IDF = log(N/Nt)
     //   ftd: inverted term document frequency (document_frequency[doc_id])
@@ -438,140 +326,6 @@ impl SchemaDependIndex for PositionList {
         query_tfidf.vec_normalize();
         Box::new(query_tfidf)
     }
-    
-    // dot product between document and query vectors of TF-IDF
-    fn rank_cosine(&self, term_ids: &Vec<TermId>) -> Vec<DocScore> {
-        let mut scores = vec![];
-        if term_ids.len() == 0 {
-            return scores;
-        }
-        let query_tfidf = self.get_phrase_tfidf_vector(term_ids);
-        // go through all documents that contains at least one term
-        for doc_id in self.docs_contain_any(&term_ids) {
-            if self.is_valid_doc_id(doc_id){
-                let doc_tfidf_vec = self.get_doc_tfidf_vector(doc_id);
-                let vec_distance = query_tfidf.vec_dot(&doc_tfidf_vec);
-                scores.push(DocScore{docid: doc_id, score: vec_distance});
-            }
-        }
-        // sort by socres
-        scores.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().reverse() );
-        scores
-    }
-
-    // The BM25 algorithm
-    // for all term t sum qt * ftd*(k1+1)/(k1*(1-b+b*(ld/lvag)) + ftd) * log(N/Nt)
-    //   qt: query term frequency
-    //   ftd: inverted term document frequency (document_frequency[doc_id])
-    //   k1: weight saturation factor, default 1.2
-    //   b: level of normalization of document length, default 0.75
-    //   N: total count of document (term_frequency[term_id, doc_id])
-    //   Nt: total count of document that contain term t (document_count)
-    fn rank_bm25(&self, term_ids: &Vec<TermId>) -> Vec<DocScore> {
-        let mut scores = vec![];
-        if term_ids.len() == 0 {
-            return scores;
-        }
-        // find out query term frequency
-        let mut query_term_freq:HashMap<TermId, u32> = HashMap::new();
-        for &tid in term_ids {
-            query_term_freq.entry(tid)
-                .and_modify(|count| *count += 1)
-                .or_insert(1);
-        }
-        // compute scores
-        let k1 = 1.2f32;
-        let k1plus1 = k1 + 1.0;
-        let b = 0.75f32;
-        let document_count = self.document_count as f32;
-        let lavg = self.average_document_length as f32;
-        let docs_contain_any = self.docs_contain_any(&term_ids);
-        for docid in docs_contain_any {
-            assert!(docid >= 1);
-            assert!(docid <= self.document_count as DocId);
-            assert!(docid <= self.document_length.len() as DocId);
-            let ld = self.document_length[docid as usize - 1] as f32;
-            let k1_b_ld_lavg = k1*(1.0-b+b*(ld/lavg));
-            let mut score = 0f32;
-            for &tid in query_term_freq.keys() {
-                let qt = *query_term_freq.get(&tid).unwrap() as f32;
-                if let Some(ftd_ref) = self.term_frequency.get(&(tid, docid)){
-                    let nt = *self.document_frequency.get(&tid).unwrap() as f32;
-                    let idf = (document_count/nt).log2(); 
-                    let ftd = *ftd_ref as f32;
-                    score += qt * ftd * k1plus1 / (k1_b_ld_lavg + ftd) * idf;    
-                }
-            }
-            scores.push(DocScore{docid: docid, score:score});  
-        }
-        // sort by socres
-        scores.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().reverse() );
-        scores
-    }
-
-    // LMD - language modeling with Dirichlet smoothing
-    // for all term t: sum(qt * log(1 + ftd * N / lt)) - n * log(1 + ld / lavg)
-    //   qt: query term frequency
-    //   ftd: inverted term document frequency, document_length[doc_id]
-    //   N: total count of document
-    //   lt: number of times term t occurs in the collection
-    //   n: equals to sum(all qt), is the number of tokens in the query
-    //   ld: length of the document d, measured in tokens
-    //   lavg: average length of all documents in the collection
-    fn rank_lmd(&self, terms: &Vec<TermId>) -> Vec<DocScore> {
-        let mut scores = vec![];
-        if terms.len() == 0 {
-            return scores;
-        }
-        // find out query term frequency
-        let mut query_term_freq:HashMap<TermId, u32> = HashMap::new();
-        for &tid in terms {
-            query_term_freq.entry(tid)
-                .and_modify(|count| *count += 1)
-                .or_insert(1);
-        }
-        let document_count = self.document_count as f32; // N
-        let lavg = self.average_document_length as f32;
-        let query_token_num = terms.len() as f32; // n
-        let docs_contain_any = self.docs_contain_any(&terms);
-        for docid in docs_contain_any {
-            let ld = self.document_length[docid as usize - 1] as f32;
-            let mut score = 0f32;
-            for &tid in query_term_freq.keys() {
-                let qt = *query_term_freq.get(&tid).unwrap() as f32;
-                if let Some(ftd_ref) = self.term_frequency.get(&(tid, docid)){
-                    let ftd = *ftd_ref as f32; 
-                    let lt = self.get_term_occurences_num(tid) as f32;
-                    score += (1f32 + ftd * document_count / lt).log2() * qt;
-                }
-            }
-            score -= (1f32 + ld / lavg).log2() * query_token_num;
-            scores.push(DocScore{docid: docid, score:score});  
-        }
-        // sort by socres
-        scores.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().reverse() );
-        scores
-    }
-
-
-    fn query(&self, terms: &Vec<TermId>, ranking: RankingAlgorithm) -> Vec<DocScore> {
-        let docs = vec![];
-        if terms.len() == 0 {
-            return docs;
-        }
-        let scorer: fn(&PositionList, &Vec<TermId>) -> Vec<DocScore>;
-        match ranking {
-            RankingAlgorithm::Default => scorer = PositionList::rank_bm25,
-            RankingAlgorithm::ExactMatch => scorer = PositionList::search_phrase,
-            RankingAlgorithm::VectorSpaceModel => scorer = PositionList::rank_cosine,
-            RankingAlgorithm::OkapiBM25 => scorer = PositionList::rank_bm25,  
-            RankingAlgorithm::LMD => scorer = PositionList::rank_lmd,       
-        }
-        let doc_scores = scorer(&self, &terms);
-        doc_scores
-    }
-
-
 
 }
 
@@ -672,176 +426,4 @@ mod tests {
         assert_eq!(doc_set, HashSet::from([2]));
 
     }
-
-    #[test]
-    fn test_prhase() {
-        let mut idx = PositionList::new();
-        let mut dict = Dictionary::new();
-        let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
-        let mut doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 1);
-        term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 2);
-        let mut res=0;
-        if let Some(pos) = idx.first(1, 1){
-            res = pos;
-            assert_eq!(pos, 1);
-        }
-        if let Some(pos) = idx.next(1, 1, res){
-            res = pos;
-            assert_eq!(pos, 3);
-        }
-
-        if let Some(pos) = idx.last(1, 1){
-            res = pos;
-            assert_eq!(pos, 3);
-        }
-        if let Some(pos) = idx.prev(1, 1, res){
-            assert_eq!(pos, 1);
-        }
-
-        let docs = idx.docs_contain_all(&vec![5,6]);
-        assert_eq!(docs, Some(HashSet::from([1,2])));
-        let mut phrase_start_end = idx.all_phrase(1, &vec![5,6]);
-        assert_eq!(phrase_start_end, vec![(6, 7), (8, 9)]);
-        phrase_start_end = idx.all_phrase(2, &vec![5,6]);
-        assert_eq!(phrase_start_end, vec![(1, 2)]);
-    }
-
-    #[test]
-    fn test_search_phrase() {
-        let mut idx = PositionList::new();
-        let mut dict = Dictionary::new();
-        let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
-        let mut doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 1);
-        term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 2);
-
-        // let mut phrase_in_tokens = vec!["你", "好"];
-        let mut term_ids = vec![5, 6]; // vec!["你", "好"];
-        let mut docs = idx.search_phrase(&term_ids);
-        assert_eq!(docs.len(), 2);
-        assert_eq!(term_ids.len(),2);
-
-        term_ids = vec![5]; // vec!["你"];
-        docs = idx.search_phrase(&term_ids);
-        assert_eq!(docs.len(), 2);
-        assert_eq!(term_ids.len(),1);
-
-    }
-
-    #[test]
-    fn test_vector_space_model(){
-        let mut idx = PositionList::new();
-        let mut dict = Dictionary::new();
-        let mut term_ids = dict.generate_ids(&vec!["do", "you", "quarrel", "sir"]);
-        let mut doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 1);
-        term_ids = dict.generate_ids(&vec!["quarrel", "sir", "no", "sir"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 2);
-        term_ids = dict.generate_ids(&vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
-        "i", "serve", "as", "good", "a", "man", "as", "you"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 3);
-        term_ids = dict.generate_ids(&vec!["no", "better"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 4);
-        term_ids = dict.generate_ids(&vec!["well", "sir"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 5);
-        assert!(idx.is_valid_doc_id(0) == false);
-        let tfidf_ok = idx.compute_tf_idf();
-        assert_eq!(idx.document_count, idx.document_length.len());
-        assert_eq!(tfidf_ok, Ok(()));
-        let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
-        let docs = idx.rank_cosine(&term_ids);
-        assert_eq!(term_ids.len(), 2);
-        assert_eq!(docs.len(), 4);
-        // DocumentID 1    2    3    4    5
-        // Similarity 0.59 0.73 0.01 0.00 0.03
-        let epsilon = 0.005;
-        assert_eq!( docs[0].docid, 2 );
-        assert!( (docs[0].score - 0.73).abs() <= epsilon );
-        assert_eq!( docs[1].docid, 1 );
-        assert!( (docs[1].score - 0.59).abs() <= epsilon );
-        assert_eq!( docs[2].docid, 5 );
-        assert!( (docs[2].score - 0.03).abs() <= epsilon );
-        assert_eq!( docs[3].docid, 3 );
-        assert!( (docs[3].score - 0.01).abs() <= epsilon );
-    }
-
-    #[test]
-    fn test_rank_bm25(){
-        let mut idx = PositionList::new();
-        let mut dict = Dictionary::new();
-        let mut term_ids = dict.generate_ids(&vec!["do", "you", "quarrel", "sir"]);
-        let mut doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 1);
-        term_ids = dict.generate_ids(&vec!["quarrel", "sir", "no", "sir"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 2);
-        term_ids = dict.generate_ids(&vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
-        "i", "serve", "as", "good", "a", "man", "as", "you"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 3);
-        term_ids = dict.generate_ids(&vec!["no", "better"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 4);
-        term_ids = dict.generate_ids(&vec!["well", "sir"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 5);
-        assert!(idx.is_valid_doc_id(0) == false);
-        let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
-        let docs = idx.rank_bm25(&term_ids);
-        assert_eq!(docs.len(), 4);
-        assert_eq!(term_ids.len(),2); // unchanged
-        // DocumentID 2    1    5    3
-        // Score      1.98 1.86 0.44 0.18
-        let epsilon = 0.005;
-        assert_eq!( docs[0].docid, 2 );
-        assert!( (docs[0].score - 1.98).abs() <= epsilon );
-        assert_eq!( docs[1].docid, 1 );
-        assert!( (docs[1].score - 1.86).abs() <= epsilon );
-        assert_eq!( docs[2].docid, 5 );
-        assert!( (docs[2].score - 0.44).abs() <= epsilon );
-        assert_eq!( docs[3].docid, 3 );
-        assert!( (docs[3].score - 0.18).abs() <= epsilon );
-
-    }
-
-    #[test]
-    fn test_rank_lmd() {
-        let mut idx = PositionList::new();
-        let mut dict = Dictionary::new();
-        let mut term_ids = dict.generate_ids(&vec!["do", "you", "quarrel", "sir"]);
-        let mut doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 1);
-        term_ids = dict.generate_ids(&vec!["quarrel", "sir", "no", "sir"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 2);
-        term_ids = dict.generate_ids(&vec!["if", "you", "do", "sir", "i", "am", "for", "you", 
-        "i", "serve", "as", "good", "a", "man", "as", "you"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 3);
-        term_ids = dict.generate_ids(&vec!["no", "better"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 4);
-        term_ids = dict.generate_ids(&vec!["well", "sir"]);
-        doc_id = idx.build_from(&term_ids);
-        assert_eq!(doc_id, 5);
-        assert!(idx.is_valid_doc_id(0) == false);
-        let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
-        let docs = idx.rank_lmd(&term_ids);
-        assert_eq!(docs.len(), 4);
-        assert_eq!(term_ids.len(),2); // unchanged
-        // doc 1 score should be 1.25
-        let docs_subset:Vec<DocScore> = docs.into_iter().filter(|doc| doc.docid == 1).collect();
-        let epsilon = 0.005;
-        assert!((docs_subset[0].score - 1.25).abs() < epsilon);
-    }
-    
 }

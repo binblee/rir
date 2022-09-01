@@ -11,6 +11,7 @@ use std::io::{self, Write, Read};
 use super::doc::Document;
 use super::doc::text::TextFileParser;
 use super::query::Query;
+use super::ranking::Scorer;
 use whatlang::{Detector, Lang};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -114,7 +115,7 @@ impl Engine {
         }
         let term_ids = Query::parse(phrase_str, ignore_non_exist_term, &self.analyzer);
         let mut docs = vec![];
-        let doc_scores = self.index.query(&term_ids, ranking);
+        let doc_scores = self.index.score(&term_ids, ranking);
         for doc in doc_scores {
             if let Some(doc_path) = self.doc_meta.get(&doc.docid){
                 docs.push(doc_path);
