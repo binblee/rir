@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::cmp::Reverse;
 use serde::{Serialize, Deserialize};
-use super::utils::sparse_vector::{SparseVector, SparseVectorOp};
-use super::dictionary::Dictionary;
-use super::common::{DocId, TermId, TermOffset};
+use crate::ircore::utils::sparse_vector::{SparseVector, SparseVectorOp};
+use crate::ircore::dictionary::Dictionary;
+use crate::ircore::common::{DocId, TermId, TermOffset};
 
 type Positions = Vec<TermOffset>;
 #[derive(Debug, Serialize, Deserialize)]
@@ -332,7 +332,7 @@ impl SchemaDependIndex for PositionList {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::dictionary::Dictionary;
+    use crate::ircore::dictionary::Dictionary;
 
     #[test]
     fn test_index_from_string(){

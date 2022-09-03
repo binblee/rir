@@ -1,6 +1,6 @@
 use std::fs::{self};
 use std::path::{Path, PathBuf};
-use super::Document;
+use crate::ircore::doc::Document;
 use encoding_rs::{ISO_8859_2};
 use encoding_rs_io::{DecodeReaderBytesBuilder};
 use std::io::Read;

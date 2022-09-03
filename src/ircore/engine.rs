@@ -1,17 +1,17 @@
-use super::index::{SchemaDependIndex, PositionList, IndexStats};
-use super::common::{DocId, RankingAlgorithm};
-use super::analyzer::{Analyzer, AnalyzerStats};
-use super::tokenizer::Language;
+use crate::ircore::index::{SchemaDependIndex, PositionList, IndexStats};
+use crate::ircore::common::{DocId, RankingAlgorithm};
+use crate::ircore::analyzer::{Analyzer, AnalyzerStats};
+use crate::ircore::tokenizer::Language;
 use std::fs::{self, File};
 use std::path::Path;
 use std::collections::{HashMap};
 use serde::{Serialize, Deserialize};
 use bincode;
 use std::io::{self, Write, Read};
-use super::doc::Document;
-use super::doc::text::TextFileParser;
-use super::query::Query;
-use super::ranking::Scorer;
+use crate::ircore::doc::Document;
+use crate::ircore::doc::text::TextFileParser;
+use crate::ircore::query::Query;
+use crate::ircore::ranking::Scorer;
 use whatlang::{Detector, Lang};
 
 #[derive(Debug, Serialize, Deserialize)]

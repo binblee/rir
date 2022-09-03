@@ -1,7 +1,7 @@
-use super::super::common::{TermId};
-use super::super::index::{PositionList, SchemaDependIndex};
-use super::super::utils::sparse_vector::SparseVectorOp;
-use super::DocScore;
+use crate::ircore::common::{TermId};
+use crate::ircore::index::{PositionList, SchemaDependIndex};
+use crate::ircore::utils::sparse_vector::SparseVectorOp;
+use crate::ircore::ranking::DocScore;
 
 pub trait VectorSpaceModel {
     fn rank_vsm(&self, term_ids: &Vec<TermId>) -> Vec<DocScore>;
@@ -31,8 +31,8 @@ impl VectorSpaceModel for PositionList {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::super::index::{PositionList, SchemaDependIndex};
-    use super::super::super::dictionary::Dictionary;
+    use crate::ircore::index::{PositionList, SchemaDependIndex};
+    use crate::ircore::dictionary::Dictionary;
 
     #[test]
     fn test_vsm() {

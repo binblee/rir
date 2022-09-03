@@ -1,6 +1,6 @@
-use super::super::common::TermId;
-use super::DocScore;
-use super::super::index::{PositionList, SchemaDependIndex};
+use crate::ircore::common::TermId;
+use crate::ircore::ranking::DocScore;
+use crate::ircore::index::{PositionList, SchemaDependIndex};
 use std::collections::HashMap;
 
 pub trait LanguageModelDivergence {
@@ -55,8 +55,8 @@ impl LanguageModelDivergence for PositionList {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::index::{PositionList, SchemaDependIndex};
-    use super::super::super::dictionary::Dictionary;
+    use crate::ircore::index::{PositionList, SchemaDependIndex};
+    use crate::ircore::dictionary::Dictionary;
     use super::*;
 
     #[test]

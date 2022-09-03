@@ -1,6 +1,6 @@
-use super::dictionary::{Dictionary, DictionaryStats};
-use super::tokenizer::{Segmentator, Language};
-use super::common::TermId;
+use crate::ircore::dictionary::{Dictionary, DictionaryStats};
+use crate::ircore::tokenizer::{Segmentator, Language};
+use crate::ircore::common::TermId;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]

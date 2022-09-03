@@ -7,14 +7,14 @@ use bm25::OkapiBm25;
 use lmd::LanguageModelDivergence;
 use ps::PhraseMatch;
 
-use super::common::DocId;
+use crate::ircore::common::DocId;
 pub struct DocScore {
     pub docid: DocId,
     pub score: f32,
 }
 
-use super::common::{TermId, RankingAlgorithm};
-use super::index::{PositionList};
+use crate::ircore::common::{TermId, RankingAlgorithm};
+use crate::ircore::index::{PositionList};
 pub trait Scorer {
     fn score(&self, terms: &Vec<TermId>, ranking: RankingAlgorithm) -> Vec<DocScore>;
 }

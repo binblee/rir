@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-use super::common::TermId;
+use crate::ircore::common::TermId;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Dictionary {

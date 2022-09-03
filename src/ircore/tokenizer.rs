@@ -70,9 +70,10 @@ impl Segmentator {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_parse_tokens() {
-        use super::*;
         let text = "Quarrel sir! no, sir!";
         let latinseg = Segmentator::new();
         let normalized = latinseg.normalize(text);
@@ -83,7 +84,6 @@ mod tests {
 
     #[test]
     fn test_parse_chinese() {
-        use super::*;
         let text = "滚滚长江东逝水，浪花淘尽英雄。";
         let mut seg = Segmentator::new();
         seg.set_language(Language::Chinese);

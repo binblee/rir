@@ -1,4 +1,4 @@
-use super::DocScore;
+use crate::ircore::ranking::DocScore;
 use crate::ircore::index::{PositionList, SchemaDependIndex};
 use crate::ircore::common::{DocId, TermId, TermOffset};
 
