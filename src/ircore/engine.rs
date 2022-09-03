@@ -73,7 +73,7 @@ impl Engine {
 
     fn add_document(&mut self, doc: &Document) -> Result<(),()> {
         let term_ids = self.analyzer.analyze(doc.get_content());
-        let id = self.index.build_from(&term_ids);
+        let id = self.index.add_document(&term_ids);
         self.doc_meta.insert(id, doc.get_path().to_owned());
         Ok(())
     }

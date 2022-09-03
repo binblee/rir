@@ -59,7 +59,7 @@ pub struct IndexStats {
 
 pub trait SchemaDependIndex {
     fn new() -> Self;
-    fn build_from(&mut self, term_ids: &Vec<TermId>) -> DocId;
+    fn add_document(&mut self, term_ids: &Vec<TermId>) -> DocId;
     fn next_doc_id(&mut self) -> DocId;
     // getters
     // get: positition list for one term in doc
@@ -161,7 +161,7 @@ impl SchemaDependIndex for PositionList {
         self.next_doc_id
     }
 
-    fn build_from(&mut self, term_ids: &Vec<TermId>) -> DocId {
+    fn add_document(&mut self, term_ids: &Vec<TermId>) -> DocId {
         //TODO to be replaced by function call
         let doc_id = self.next_doc_id();
         let mut cached_term_id: HashSet<TermId> = HashSet::new();
@@ -339,7 +339,7 @@ mod tests {
         let mut idx = PositionList::new();
         let mut dict = Dictionary::new();
         let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
-        let mut doc_id = idx.build_from(&term_ids);
+        let mut doc_id = idx.add_document(&term_ids);
         /*
         PositionList { 
             dict: Dictionary { term_ids: {"hello": 1, "世": 3, "好": 6, "界": 4, "world": 2, "你": 5}, next_id: 7 }, 
@@ -363,7 +363,7 @@ mod tests {
         assert_eq!(idx.document_count,1);
 
         term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
-        doc_id = idx.build_from(&term_ids);
+        doc_id = idx.add_document(&term_ids);
         /*
         PositionList { 
             dict: Dictionary { term_ids: {"天": 8, "你": 5, "明": 7, "hello": 1, "世": 3, "好": 6, "界": 4, "world": 2}, next_id: 9 }, 
@@ -397,10 +397,10 @@ mod tests {
         let mut idx = PositionList::new();
         let mut dict = Dictionary::new();
         let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
-        let mut doc_id = idx.build_from(&term_ids);
+        let mut doc_id = idx.add_document(&term_ids);
         assert_eq!(doc_id, 1);
         term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
-        doc_id = idx.build_from(&term_ids);
+        doc_id = idx.add_document(&term_ids);
         assert_eq!(doc_id, 2);
         // contain all
         let mut term_ids = vec![1,6];

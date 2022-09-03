@@ -192,10 +192,10 @@ mod tests {
         let mut idx = PositionList::new();
         let mut dict = Dictionary::new();
         let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
-        let mut doc_id = idx.build_from(&term_ids);
+        let mut doc_id = idx.add_document(&term_ids);
         assert_eq!(doc_id, 1);
         term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
-        doc_id = idx.build_from(&term_ids);
+        doc_id = idx.add_document(&term_ids);
         assert_eq!(doc_id, 2);
         let mut res=0;
         if let Some(pos) = idx.first(1, 1){
@@ -228,10 +228,10 @@ mod tests {
         let mut idx = PositionList::new();
         let mut dict = Dictionary::new();
         let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
-        let mut doc_id = idx.build_from(&term_ids);
+        let mut doc_id = idx.add_document(&term_ids);
         assert_eq!(doc_id, 1);
         term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
-        doc_id = idx.build_from(&term_ids);
+        doc_id = idx.add_document(&term_ids);
         assert_eq!(doc_id, 2);
 
         // let mut phrase_in_tokens = vec!["你", "好"];
