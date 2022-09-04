@@ -1,6 +1,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 use serde::{Serialize, Deserialize};
 use jieba_rs::Jieba;
+use once_cell::sync::Lazy;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub enum Language {
@@ -8,18 +9,17 @@ pub enum Language {
     Chinese,
 }
 
+static JIEBA: Lazy<Jieba> = Lazy::new(Jieba::new);
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Segmentator {
     lang: Language,
-    #[serde(skip)]
-    zh_seg: Jieba,
 }
 
 impl Segmentator {
     pub fn new() -> Self {
         Segmentator{
             lang: Language::English,
-            zh_seg: Jieba::new(),
         }
     }
 
@@ -34,7 +34,7 @@ impl Segmentator {
         match self.lang {
             Language::English => return text.unicode_words().collect(),
             Language::Chinese => {
-                let raw_word_list = self.zh_seg.cut(text, false);
+                let raw_word_list = JIEBA.cut(text, false);
                 let mut words = vec![];
                 for raw_word in raw_word_list {
                     let mut chars = raw_word.chars();
@@ -95,12 +95,11 @@ mod tests {
     #[test]
     fn test_jieba() {
         use jieba_rs::Token;
-        let jieba = jieba_rs::Jieba::new();
-        let words = jieba.cut("人们发现，地球上海陆交界处的潮汐所具有的高度规律性正是由月亮的位置（和月相）控制的。", false);
+        let words = JIEBA.cut("人们发现，地球上海陆交界处的潮汐所具有的高度规律性正是由月亮的位置（和月相）控制的。", false);
         assert_eq!(words, vec!["人们", "发现", "，", "地球", "上", 
             "海陆", "交界处", "的", "潮汐", "所", "具有", "的", "高度", "规律性", 
             "正是", "由", "月亮", "的", "位置", "（", "和", "月相", "）", "控制", "的", "。"]);
-        let tokens = jieba.tokenize("滚滚长江东逝水，浪花淘尽英雄。", jieba_rs::TokenizeMode::Search, true);
+        let tokens = JIEBA.tokenize("滚滚长江东逝水，浪花淘尽英雄。", jieba_rs::TokenizeMode::Search, true);
         assert_eq!(tokens, vec![
             Token { word: "滚滚", start: 0, end: 2 }, 
             Token { word: "长江", start: 2, end: 4 }, 
