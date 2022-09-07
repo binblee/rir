@@ -60,7 +60,7 @@ impl Segmentator {
                 return text.to_lowercase();
             },
             Language::Chinese => {
-                return text.to_string(); // do nothing at this moment, 
+                return text.to_lowercase(); // do nothing at this moment, 
             },
         }
     }    
