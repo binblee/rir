@@ -9,3 +9,5 @@ pub enum RankingAlgorithm {
     OkapiBM25,
     LMD,
 }
+
+pub const CFG_NAME: &str = ".rircfg";

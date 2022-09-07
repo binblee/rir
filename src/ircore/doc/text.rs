@@ -1,24 +1,47 @@
 use std::fs::{self};
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use crate::ircore::doc::Document;
 use encoding_rs::{ISO_8859_2};
 use encoding_rs_io::{DecodeReaderBytesBuilder};
 use std::io::Read;
 use std::fs::File;
 use std::io::{self};
-use std::io::ErrorKind::{self};
-use std::collections::VecDeque;
+use std::io::ErrorKind;
+use super::dir::{DirIter, ParseFile};
+use crate::ircore::doc::cfg::Cfg;
 
 pub struct TextFileParser {
 }
 
 impl TextFileParser {
-    pub fn docs(path: &str) -> DirIter {
-        DirIter {
-            path_queue: VecDeque::from(vec!(PathBuf::from(path))),
+    pub fn docs<'a>(path: &str, cfg: &'a Cfg) -> DirIter<'a> {
+        DirIter::new(path, Self::parse_file, cfg)
+    }
+    fn read_to_string_non_utf8_encoding(path: &Path) -> io::Result<String> {
+        let mut dest = String::new();
+        match File::open(path){
+            Ok(source_file) => {
+                let mut decoder = DecodeReaderBytesBuilder::new()
+                .encoding(Some(ISO_8859_2))
+                .build(source_file);
+    
+                match decoder.read_to_string(&mut dest){
+                    Ok(res) => {
+                        assert!(res > 0);
+                        return Ok(dest);    
+                    }
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }    
+            },
+            Err(e) => return Err(e),
         }
     }
-    fn parse_file(path: &Path) -> io::Result<Document> {
+}
+
+impl ParseFile for TextFileParser {
+    fn parse_file(path: &Path, _cfg: &Cfg) -> io::Result<Document> {
         let path_string = path.to_string_lossy().to_string();
         if path.is_file() {
             match fs::read_to_string(path) {
@@ -44,58 +67,6 @@ impl TextFileParser {
             return Err(io::Error::new(ErrorKind::Other, format!("{} is not a file", path_string)))
         }
     }
-
-    fn read_to_string_non_utf8_encoding(path: &Path) -> io::Result<String> {
-        let mut dest = String::new();
-        match File::open(path){
-            Ok(source_file) => {
-                let mut decoder = DecodeReaderBytesBuilder::new()
-                .encoding(Some(ISO_8859_2))
-                .build(source_file);
-    
-                match decoder.read_to_string(&mut dest){
-                    Ok(res) => {
-                        assert!(res > 0);
-                        return Ok(dest);    
-                    }
-                    Err(e) => {
-                        return Err(e);
-                    }
-                }    
-            },
-            Err(e) => return Err(e),
-        }
-    }
-}
-
-pub struct DirIter {
-    path_queue: VecDeque<PathBuf>,
-}
-
-impl Iterator for DirIter {
-    type Item = Document;
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(path) = self.path_queue.pop_front(){
-            if path.is_file(){
-                match TextFileParser::parse_file(&path){
-                    Ok(doc) => return Some(doc),
-                    Err(e) => {
-                        println!("{}", e);
-                    }
-                }
-            }else if path.is_dir(){
-                // println!("indexing {}...", path.display());
-                for entry_result in path.read_dir().expect(&format!("read dir {} failed", path.display())) {
-                    if let Ok(entry) = entry_result{
-                        let entry_path = entry.path();
-                        self.path_queue.push_back(entry_path)   
-                    }
-                }
-            }
-            return self.next();    
-        }
-        return None;
-    }
 }
 
 #[cfg(test)]
@@ -104,13 +75,15 @@ mod tests {
 
     #[test]
     fn test_plain_text() {
-        if let Ok(doc) = TextFileParser::parse_file(Path::new("./sample_corpus/romeo_juliet/a/1.txt")){
+        if let Ok(doc) = TextFileParser::parse_file(Path::new("./sample_corpus/romeo_juliet/a/1.txt"),
+                                                    &Cfg::new()){
             assert_eq!(doc.get_content(), "Do you quarrel, sir?");
             assert_eq!(doc.get_path(), "./sample_corpus/romeo_juliet/a/1.txt");
         }else{
             assert!(false);
         }
-        if let Err(e) = TextFileParser::parse_file(Path::new("./sample_corpus/romeo_juliet/non-exist.txt")){
+        if let Err(e) = TextFileParser::parse_file(Path::new("./sample_corpus/romeo_juliet/non-exist.txt"),
+                                                    &Cfg::new()){
             assert_eq!(e.kind(), io::ErrorKind::Other);
         }
     }
@@ -118,7 +91,7 @@ mod tests {
     #[test]
     fn test_load_file_encoding_iso8859() {
         let filename = "/Users/libin/Code/github.com/binblee/sir/20news-18828/comp.windows.x/67305";
-        if let Ok(doc) = TextFileParser::parse_file(Path::new(filename)){
+        if let Ok(doc) = TextFileParser::parse_file(Path::new(filename), &Cfg::new()){
             assert_eq!(doc.get_path(), filename);
         }
     }
@@ -161,7 +134,8 @@ mod tests {
 
     #[test]
     fn test_txt_file_parser_docs() {
-        let docs:Vec<Document> = TextFileParser::docs("./sample_corpus/romeo_juliet").collect();
+        let docs:Vec<Document> = TextFileParser::docs("./sample_corpus/romeo_juliet",
+                                &Cfg::new()).collect();
         assert_eq!(docs.len(), 5);
     }
 }

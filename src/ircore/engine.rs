@@ -1,7 +1,6 @@
 use crate::ircore::index::{SchemaDependIndex, PositionList, IndexStats};
 use crate::ircore::common::{DocId, RankingAlgorithm};
 use crate::ircore::analyzer::{Analyzer, AnalyzerStats};
-use crate::ircore::tokenizer::Language;
 use std::fs::{self, File};
 use std::path::Path;
 use std::collections::{HashMap};
@@ -9,10 +8,9 @@ use serde::{Serialize, Deserialize};
 use bincode;
 use std::io::{self, Write, Read};
 use crate::ircore::doc::Document;
-use crate::ircore::doc::text::TextFileParser;
 use crate::ircore::query::Query;
 use crate::ircore::ranking::Scorer;
-use whatlang::{Detector, Lang};
+use crate::ircore::doc::doc_parser::DocParser;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Engine {
@@ -50,19 +48,7 @@ impl Engine {
     }
 
     pub fn build_index_from(&mut self, path: &str) -> Result<usize, ()> {
-        let mut lang_detected = false;
-        for doc in TextFileParser::docs(path){
-            if !lang_detected {
-                let allowlist = vec![Lang::Eng, Lang::Cmn];
-                let detector = Detector::with_allowlist(allowlist);
-                let content = doc.get_content();
-                let lang = detector.detect_lang(content);
-                match lang {
-                    Some(Lang::Cmn) => self.analyzer.set_language(Language::Chinese),
-                    _ => (),
-                }
-                lang_detected = true;
-            }
+        for doc in DocParser::new(path).docs(){
             self.add_document(&doc).unwrap();
         }
         if let Ok(_) = self.compute_tf_idf() {
@@ -265,13 +251,19 @@ mod tests {
     }
 
     #[test]
-    fn test_whatlang() {
-        let allowlist = vec![Lang::Eng, Lang::Cmn];
-        let detector = Detector::with_allowlist(allowlist);
-        let mut lang = detector.detect_lang("There is no reason not to learn Esperanto.");
-        assert_eq!(lang, Some(Lang::Eng));
-        lang = detector.detect_lang("宴桃园豪杰三结义　斩黄巾英雄首立功");
-        assert_eq!(lang, Some(Lang::Cmn));
+    fn test_build_index_from_json_files() {
+        let mut engine = Engine::new();
+        let res = engine.build_index_from("./sample_corpus/wiki_zh");
+        assert_eq!(res, Ok(2));
+        assert_eq!(engine.doc_count(), 2);
+        let index_path = ".rir/wiki_zh.idx";
+        let _ = engine.save_to(index_path);
+        let loaded_engine = Engine::load_from(index_path);
+        assert_eq!(loaded_engine.doc_count(), 2);
+        let docs = loaded_engine.exec_query("印卡王室述评", RankingAlgorithm::ExactMatch);
+        use std::collections::HashSet;
+        let doc_set: HashSet<&String> = HashSet::from_iter(docs);
+        assert_eq!(doc_set, HashSet::from([&"./sample_corpus/wiki_zh/wiki_1".to_string()]));
     }
 
 }

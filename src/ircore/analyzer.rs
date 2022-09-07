@@ -2,11 +2,13 @@ use crate::ircore::dictionary::{Dictionary, DictionaryStats};
 use crate::ircore::tokenizer::{Segmentator, Language};
 use crate::ircore::common::TermId;
 use serde::{Serialize, Deserialize};
+use whatlang::{Detector, Lang};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Analyzer {
     dict: Dictionary,
     seg: Segmentator,
+    lang_detected: bool,
 }
 
 pub struct AnalyzerStats {
@@ -19,17 +21,36 @@ impl Analyzer {
         Analyzer{
             dict: Dictionary::new(),
             seg: Segmentator::new(),
+            lang_detected: false,
+        }
+    }
+
+    pub fn detect_language(&mut self, doc_content: &str){
+        if !self.lang_detected {
+            let allowlist = vec![Lang::Eng, Lang::Cmn];
+            let detector = Detector::with_allowlist(allowlist);
+            let lang = detector.detect_lang(doc_content);
+            match lang {
+                Some(Lang::Cmn) => self.set_language(Language::Chinese),
+                _ => (), // default English
+            }
+            self.lang_detected = true;
         }
     }
 
     pub fn set_language(&mut self, lang: Language){
-        self.seg.set_language(lang);
+        self.seg.set_language(lang)
+    }
+
+    pub fn get_language(&self) -> Language{
+        self.seg.get_language()
     }
 
     pub fn get_dictionary(&self) -> &Dictionary{
         &self.dict
     }
     pub fn analyze(&mut self, text: &str) -> Vec<TermId> {
+        self.detect_language(text);
         let text_normalized = self.seg.normalize(&text);
         let tokens = self.seg.parse_tokens(&text_normalized);
         let term_ids = self.dict.generate_ids(&tokens);
@@ -44,7 +65,7 @@ impl Analyzer {
 
     pub fn stats(&self) -> AnalyzerStats {
         let lang_str;
-        match self.seg.get_language() {
+        match self.get_language() {
             Language::English => lang_str = String::from("English"),
             Language::Chinese => lang_str = String::from("Chinese"),
         }
@@ -82,11 +103,19 @@ mod tests {
     }
 
     #[test]
+    fn test_analyze_english() {
+        let mut analyzer = Analyzer::new();
+        let term_ids = analyzer.analyze("Do you quarrel, sir?");
+        assert_eq!(analyzer.get_language(), Language::English);
+        assert_eq!(term_ids, vec![1, 2, 3, 4]);
+    }
+
+
+    #[test]
     fn test_analyze_chinese() {
         let mut analyzer = Analyzer::new();
-        analyzer.set_language(Language::Chinese);
-        assert_eq!(analyzer.seg.get_language(), Language::Chinese);
         let term_ids = analyzer.analyze("滚滚长江东逝水，浪花淘尽英雄。");
+        assert_eq!(analyzer.get_language(), Language::Chinese);
         assert_eq!(term_ids, vec![1, 2, 3, 4, 5, 6, 7, 8]);
     }
 
@@ -99,6 +128,16 @@ mod tests {
         assert!(!'中'.is_ascii_alphabetic());
         assert!(!'，'.is_alphabetic());
         
+    }
+
+    #[test]
+    fn test_whatlang() {
+        let allowlist = vec![Lang::Eng, Lang::Cmn];
+        let detector = Detector::with_allowlist(allowlist);
+        let mut lang = detector.detect_lang("There is no reason not to learn Esperanto.");
+        assert_eq!(lang, Some(Lang::Eng));
+        lang = detector.detect_lang("宴桃园豪杰三结义　斩黄巾英雄首立功");
+        assert_eq!(lang, Some(Lang::Cmn));
     }
 
 }

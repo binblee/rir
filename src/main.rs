@@ -149,9 +149,22 @@ fn stats(engine: &Engine) {
 }
 
 fn command_sand_box() {
-    let jieba = jieba_rs::Jieba::new();
-    let words = jieba.cut("滚滚长江东逝水，浪花淘尽英雄。", false);
-    assert_eq!(words, vec!["滚滚", "长江", "东", "逝水", "，", "浪花", "淘", "尽", "英雄", "。"]);
-    let tokens = jieba.tokenize("滚滚长江东逝水，浪花淘尽英雄。", jieba_rs::TokenizeMode::Search, true);
-    println!("{:?}", tokens);
+    use serde::{Serialize, Deserialize};
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct Cfg {
+        file_type: String,
+        fields: Vec<String>,
+    }
+    let cfg_str = 
+r#"file_type: json
+fields:
+    - id
+    - title
+    - url
+    - content
+"#;
+    println!("{}", cfg_str);  
+    let cfg:Cfg = serde_yaml::from_str(cfg_str).unwrap();
+    println!("{:?}", cfg);
+
 }

@@ -1,4 +1,9 @@
+pub mod dir;
 pub mod text;
+pub mod json;
+pub mod doc_parser;
+pub mod cfg;
+
 
 #[derive(PartialEq, Debug)]
 pub struct Document {
