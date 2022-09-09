@@ -83,23 +83,23 @@ impl<'a> Iterator for DirIter<'a> {
             if path.is_file() {
                 if Self::ignore(&path) {
                     let path_string = path.to_string_lossy().to_string();
-                    println!("ignore {}", path_string);
+                    log::info!("ignore {}", path_string);
                 }else{
                     match Self::load_content(&path){
                         Ok(c) => match (self.fn_parsestring)(&path, &c, &self.cfg){
                             Ok(doc) => return Some(doc),
                             Err(e) => {
-                                println!("{}", e);
+                                log::error!("{}", e);
                             }
                         },
                         Err(e) => {
-                            println!("{}", e);
+                            log::error!("{}", e);
                         }
                     }
     
                 }
             }else if path.is_dir(){
-                // println!("indexing {}...", path.display());
+                log::debug!("found {}...", path.display());
                 for entry_result in path.read_dir().expect(&format!("read dir {} failed", path.display())) {
                     if let Ok(entry) = entry_result{
                         let entry_path = entry.path();

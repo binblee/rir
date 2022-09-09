@@ -50,6 +50,9 @@ impl Engine {
     pub fn build_index_from(&mut self, path: &str) -> Result<usize, ()> {
         for doc in DocParser::new(path).docs(){
             self.add_document(&doc).unwrap();
+            if self.index.get_document_count() % 1000 == 0 {
+                log::debug!("{}", self.index.get_document_count());
+            }
         }
         if let Ok(_) = self.compute_tf_idf() {
             return Ok(self.doc_count());

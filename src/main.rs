@@ -50,14 +50,15 @@ enum SelectRankingAlgorithm {
 
 fn main() {
     let cli = Cli::parse();
+    env_logger::init();
 
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
         Some(Commands::Build { corpus_dir}) => 
             match command_build_index(corpus_dir, &cli.index_dir){
-                Ok(count) => println!("{} documents indexed", count),
-                Err(_) => eprintln!("error in processing")
+                Ok(count) => log::info!("{} documents indexed", count),
+                Err(_) => log::error!("error in processing")
             },
         Some(Commands::Search {phrase, ranking}) => 
             command_search(&cli.index_dir, phrase, ranking)
@@ -149,22 +150,10 @@ fn stats(engine: &Engine) {
 }
 
 fn command_sand_box() {
-    use serde::{Serialize, Deserialize};
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct Cfg {
-        file_type: String,
-        fields: Vec<String>,
-    }
-    let cfg_str = 
-r#"file_type: json
-fields:
-    - id
-    - title
-    - url
-    - content
-"#;
-    println!("{}", cfg_str);  
-    let cfg:Cfg = serde_yaml::from_str(cfg_str).unwrap();
-    println!("{:?}", cfg);
-
+    use log::{debug, error,info, warn};
+    error!("{}", "Its fleece was white as snow");
+    warn!("{:#?}", "The lamb was sure to go");
+    info!("{:?}", "And every where that Mary went");
+    debug!("Mary has a little lamb");
+    log::error!("--");
 }
