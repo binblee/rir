@@ -1,7 +1,7 @@
 use std::path::Path;
 use crate::ircore::doc::dir::DirIter;
-use crate::ircore::doc::json::JsonFileParser;
-use crate::ircore::doc::text::TextFileParser;
+use crate::ircore::doc::json::JsonDocParser;
+use crate::ircore::doc::text::TextDocParser;
 use crate::ircore::common::CFG_NAME;
 use crate::ircore::doc::cfg::Cfg;
 pub struct DocParser {
@@ -33,9 +33,9 @@ impl DocParser {
     }
     pub fn docs(&self) -> DirIter {
         if self.cfg.is_json() {
-            return JsonFileParser::docs(&self.path, &self.cfg);
+            return JsonDocParser::docs(&self.path, &self.cfg);
         }else{
-            return TextFileParser::docs(&self.path, &self.cfg);
+            return TextDocParser::docs(&self.path, &self.cfg);
         }
     }
 }
