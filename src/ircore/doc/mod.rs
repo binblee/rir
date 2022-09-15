@@ -3,6 +3,7 @@ pub mod text;
 pub mod json;
 pub mod doc_parser;
 pub mod cfg;
+pub mod jsonlines;
 
 
 #[derive(PartialEq, Debug)]

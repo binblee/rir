@@ -22,6 +22,13 @@ impl Cfg {
         self.file_type.to_lowercase().eq("json")
     }
 
+    pub fn is_jsonlines(&self) -> bool {
+        self.file_type.to_lowercase().eq("jsonlines")
+    }
+    pub fn get_file_type(&self) -> &str {
+        &self.file_type
+    }
+
     pub fn get_fields(&self) -> &Vec<String> {
         &self.fields
     }

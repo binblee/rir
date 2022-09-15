@@ -48,10 +48,12 @@ impl Engine {
     }
 
     pub fn build_index_from(&mut self, path: &str) -> Result<usize, ()> {
-        for doc in DocParser::new(path).docs(){
-            self.add_document(&doc).unwrap();
-            if self.index.get_document_count() % 1000 == 0 {
-                log::debug!("{}", self.index.get_document_count());
+        for docs in DocParser::new(path).docs(){
+            for doc in docs {
+                self.add_document(&doc).unwrap();
+                if self.index.get_document_count() % 1000 == 0 {
+                    log::debug!("{}", self.index.get_document_count());
+                }    
             }
         }
         if let Ok(_) = self.compute_tf_idf() {
@@ -263,10 +265,12 @@ mod tests {
         let _ = engine.save_to(index_path);
         let loaded_engine = Engine::load_from(index_path);
         assert_eq!(loaded_engine.doc_count(), 2);
-        let docs = loaded_engine.exec_query("印卡王室述评", RankingAlgorithm::ExactMatch);
+        let docs = loaded_engine.exec_query("数学", RankingAlgorithm::ExactMatch);
         use std::collections::HashSet;
         let doc_set: HashSet<&String> = HashSet::from_iter(docs);
-        assert_eq!(doc_set, HashSet::from([&"./sample_corpus/wiki_zh/wiki_1".to_string()]));
+        assert_eq!(doc_set, HashSet::from(
+            [&"./sample_corpus/wiki_zh/wiki_1".to_string(),
+            &"./sample_corpus/wiki_zh/wiki_2".to_string()]));
     }
 
 }

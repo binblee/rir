@@ -1,14 +1,16 @@
 use std::path::Path;
+use std::fs;
 use crate::ircore::doc::dir::DirIter;
 use crate::ircore::doc::json::JsonDocParser;
 use crate::ircore::doc::text::TextDocParser;
+use crate::ircore::doc::jsonlines::JsonlinesParser;
 use crate::ircore::common::CFG_NAME;
 use crate::ircore::doc::cfg::Cfg;
+
 pub struct DocParser {
     path: String,
     cfg: Cfg,
 }
-use std::fs;
 
 impl DocParser {
     pub fn new(path: &str) -> Self {
@@ -31,9 +33,14 @@ impl DocParser {
         };
 
     }
+    pub fn get_config(&self) -> &Cfg {
+        &self.cfg
+    }
     pub fn docs(&self) -> DirIter {
         if self.cfg.is_json() {
             return JsonDocParser::docs(&self.path, &self.cfg);
+        }else if self.cfg.is_jsonlines() {
+            return JsonlinesParser::docs(&self.path, &self.cfg);
         }else{
             return TextDocParser::docs(&self.path, &self.cfg);
         }
@@ -45,10 +52,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_load_json() {
+    fn test_config() {
         let mut dp = DocParser::new("./sample_corpus/wiki_zh");
         assert_eq!(dp.cfg.is_json(), true);
         dp = DocParser::new("./sample_corpus/romeo_juliet");
         assert_eq!(dp.cfg.is_json(), false);
+        dp = DocParser::new("./sample_corpus/wiki_lines");
+        assert_eq!(dp.cfg.is_jsonlines(), true);
     }
+
 }

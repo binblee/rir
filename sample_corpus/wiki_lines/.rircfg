@@ -1,0 +1,6 @@
+file_type: jsonlines
+fields:
+  - id
+  - url
+  - title
+  - text
