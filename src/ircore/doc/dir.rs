@@ -5,11 +5,7 @@ use crate::ircore::doc::cfg::Cfg;
 use std::io;
 use std::fs;
 
-type FnParseString = fn(&Path, &str, &Cfg) -> io::Result<Vec<Document>>;
-
-pub trait ParseString {
-    fn parse_string(path: &Path, text: &str, cfg: &Cfg) -> io::Result<Vec<Document>>;
-}
+pub type FnParseString = fn(&Path, &str, &Cfg) -> io::Result<Vec<Document>>;
 
 pub struct DirIter<'a> {
     path_queue: VecDeque<PathBuf>,

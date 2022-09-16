@@ -1,19 +1,33 @@
 use std::path::Path;
 use std::fs;
 use crate::ircore::doc::dir::DirIter;
-use crate::ircore::doc::json::JsonDocParser;
-use crate::ircore::doc::text::TextDocParser;
-use crate::ircore::doc::jsonlines::JsonlinesParser;
+use crate::ircore::doc::json::{self};
+use crate::ircore::doc::text::{self};
+use crate::ircore::doc::jsonlines::{self};
 use crate::ircore::common::CFG_NAME;
 use crate::ircore::doc::cfg::Cfg;
+use std::collections::HashMap;
+use crate::ircore::doc::dir::FnParseString;
+use once_cell::sync::Lazy;
+use std::sync::RwLock;
+use std::sync::Once;
 
 pub struct DocParser {
     path: String,
     cfg: Cfg,
 }
 
+static HANDLERS: Lazy<RwLock<HashMap<String, FnParseString>>> = Lazy::new(||{
+        let m = HashMap::new();
+        RwLock::new(m)
+    }
+);
+
+static INIT: Once = Once::new();
+
 impl DocParser {
     pub fn new(path: &str) -> Self {
+        Self::init();
         if Path::new(path).is_dir() {
             let dir_path = Path::new(path);
             let cfg_path = dir_path.join(Path::new(CFG_NAME));
@@ -33,17 +47,31 @@ impl DocParser {
         };
 
     }
+    pub fn init(){
+        INIT.call_once(||{
+            Self::register(text::FILETYPE, text::parse_text);
+            Self::register(json::FILETYPE, json::parse_json);
+            Self::register(jsonlines::FILETYPE, jsonlines::parse_jsonlines);    
+        });
+    }
     pub fn get_config(&self) -> &Cfg {
         &self.cfg
     }
+
+    pub fn register(filetype: &str, handler: FnParseString) {
+        let mut handlers = HANDLERS.write().unwrap();
+        handlers.insert(filetype.to_string(), handler);
+    }
+
     pub fn docs(&self) -> DirIter {
-        if self.cfg.is_json() {
-            return JsonDocParser::docs(&self.path, &self.cfg);
-        }else if self.cfg.is_jsonlines() {
-            return JsonlinesParser::docs(&self.path, &self.cfg);
-        }else{
-            return TextDocParser::docs(&self.path, &self.cfg);
+        let handler;
+        let handlers = HANDLERS.read().unwrap();
+        let filetype = self.cfg.get_file_type();
+        match handlers.get(filetype){
+            Some(h) => handler = *h,
+            None => handler = *handlers.get("text").unwrap(),
         }
+        return DirIter::new(&self.path, handler, &self.cfg);
     }
 }
 

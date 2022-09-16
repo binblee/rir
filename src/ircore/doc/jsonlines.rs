@@ -1,46 +1,35 @@
 use std::io;
 use crate::ircore::doc::Document;
 use serde_json::Value;
-use super::dir::{DirIter, ParseString};
 use crate::ircore::doc::cfg::Cfg;
 use std::path::Path;
 
-pub struct JsonlinesParser {
-}
-
-impl JsonlinesParser {
-    pub fn docs<'a>(path: &str, cfg: &'a Cfg) -> DirIter<'a> {
-        log::info!("Parse json files.");
-        DirIter::new(path, Self::parse_string, cfg)
-    }
-}
-
-impl ParseString for JsonlinesParser {
-    fn parse_string(path: &Path, text: &str, cfg: &Cfg) -> io::Result<Vec<Document>> {
-        let mut docs = vec![];
-        for (n,line) in text.lines().enumerate(){
-            let path_string = path.to_string_lossy().to_string();
-            match serde_json::from_str::<Value>(line){
-                Ok(value) => {
-                    let mut content = String::new();
-                    for f in cfg.get_fields() {
-                        let field_name = f.to_lowercase();
-                        match &value[field_name] {
-                            Value::String(s) => {
-                                content.push_str(s);
-                            },
-                            _ => (),
-                        }
+pub const FILETYPE:&str = "jsonlines";
+pub fn parse_jsonlines(path: &Path, text: &str, cfg: &Cfg) -> io::Result<Vec<Document>> {
+    let mut docs = vec![];
+    for (n,line) in text.lines().enumerate(){
+        let path_string = path.to_string_lossy().to_string();
+        match serde_json::from_str::<Value>(line){
+            Ok(value) => {
+                let mut content = String::new();
+                for f in cfg.get_fields() {
+                    let field_name = f.to_lowercase();
+                    match &value[field_name] {
+                        Value::String(s) => {
+                            content.push_str(s);
+                        },
+                        _ => (),
                     }
-                    docs.push(Document::new(content.clone(), format!("{}:{}",path_string,n+1)));    
-                },
-                Err(e) => log::warn!("{}:{}",path_string, e),
-    
-            }    
-        }
-        Ok(docs)
+                }
+                docs.push(Document::new(content.clone(), format!("{}:{}",path_string,n+1)));    
+            },
+            Err(e) => log::warn!("{}:{}",path_string, e),
+
+        }    
     }
+    Ok(docs)
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -64,7 +53,7 @@ fields:
         {"id": "2", "url": "https://someurl/2", "title": "line2", "text": "line2 content"}
 
         "#;
-        if let Ok(docs) = JsonlinesParser::parse_string(Path::new("some path"), text, &cfg){
+        if let Ok(docs) = parse_jsonlines(Path::new("some path"), text, &cfg){
             assert_eq!(docs.len(), 2);
             let c0 = docs[0].get_content();
             assert_eq!(c0, "1https://someurl/1line1line1 content");
