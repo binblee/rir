@@ -1,5 +1,5 @@
-use crate::ircore::index::{PositionList, SchemaDependIndex};
-use crate::ircore::common::{TermId};
+use crate::ircore::index::pl::{PositionList, SchemaDependIndex};
+use crate::ircore::{TermId};
 use crate::ircore::ranking::DocScore;
 use std::collections::HashMap;
 
@@ -60,8 +60,8 @@ impl OkapiBm25 for PositionList {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ircore::index::{PositionList, SchemaDependIndex};
-    use crate::ircore::dictionary::Dictionary;
+    use crate::ircore::index::pl::{PositionList, SchemaDependIndex};
+    use crate::ircore::token::dictionary::Dictionary;
 
     #[test]
     fn test_rank_bm25(){

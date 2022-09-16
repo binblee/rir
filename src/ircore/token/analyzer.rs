@@ -1,6 +1,6 @@
-use crate::ircore::dictionary::{Dictionary, DictionaryStats};
-use crate::ircore::tokenizer::{Segmentator, Language};
-use crate::ircore::common::TermId;
+use crate::ircore::token::dictionary::{Dictionary, DictionaryStats};
+use crate::ircore::token::tokenizer::{Segmentator, Language};
+use crate::ircore::TermId;
 use serde::{Serialize, Deserialize};
 use whatlang::{Detector, Lang};
 

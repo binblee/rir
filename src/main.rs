@@ -2,7 +2,7 @@ pub mod ircore;
 use ircore::engine::Engine;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::io::{self, BufRead};
-use ircore::common::RankingAlgorithm;
+use ircore::RankingAlgorithm;
 
 #[derive(Parser)]
 #[derive(Debug)]

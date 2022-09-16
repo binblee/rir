@@ -1,6 +1,5 @@
-
-use crate::ircore::common::TermId;
-use crate::ircore::analyzer::Analyzer;
+use crate::ircore::TermId;
+use crate::ircore::token::analyzer::Analyzer;
 
 pub struct Query {
 
@@ -19,7 +18,7 @@ impl Query {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ircore::analyzer::Analyzer;
+    use crate::ircore::token::analyzer::Analyzer;
 
     #[test]
     fn test_query() {

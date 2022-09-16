@@ -1,5 +1,5 @@
-use crate::ircore::common::{TermId};
-use crate::ircore::index::{PositionList, SchemaDependIndex};
+use crate::ircore::{TermId};
+use crate::ircore::index::pl::{PositionList, SchemaDependIndex};
 use crate::ircore::utils::sparse_vector::SparseVectorOp;
 use crate::ircore::ranking::DocScore;
 
@@ -31,8 +31,8 @@ impl VectorSpaceModel for PositionList {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ircore::index::{PositionList, SchemaDependIndex};
-    use crate::ircore::dictionary::Dictionary;
+    use crate::ircore::index::pl::{PositionList, SchemaDependIndex};
+    use crate::ircore::token::dictionary::Dictionary;
 
     #[test]
     fn test_vsm() {

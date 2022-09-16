@@ -1,6 +1,6 @@
 use crate::ircore::ranking::DocScore;
-use crate::ircore::index::{PositionList, SchemaDependIndex};
-use crate::ircore::common::{DocId, TermId, TermOffset};
+use crate::ircore::index::pl::{PositionList, SchemaDependIndex};
+use crate::ircore::{DocId, TermId, TermOffset};
 
 pub trait PhraseMatch {
     fn search_phrase(&self, term_ids: &Vec<TermId>) -> Vec<DocScore>;   
@@ -183,8 +183,8 @@ impl PhraseMatchHelpers for PositionList {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ircore::index::{PositionList, SchemaDependIndex};
-    use crate::ircore::dictionary::Dictionary;
+    use crate::ircore::index::pl::{PositionList, SchemaDependIndex};
+    use crate::ircore::token::dictionary::Dictionary;
     use std::collections::HashSet;
 
     #[test]
@@ -250,7 +250,7 @@ mod tests {
 
 #[cfg(test)]
 mod helper_tests {
-    use crate::ircore::index::PositionList;
+    use crate::ircore::index::pl::PositionList;
     use super::PhraseMatchHelpers;
 
     #[test]

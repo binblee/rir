@@ -1,6 +1,6 @@
-use crate::ircore::index::{SchemaDependIndex, PositionList, IndexStats};
-use crate::ircore::common::{DocId, RankingAlgorithm};
-use crate::ircore::analyzer::{Analyzer, AnalyzerStats};
+use crate::ircore::index::pl::{SchemaDependIndex, PositionList, IndexStats};
+use crate::ircore::{DocId, RankingAlgorithm};
+use crate::ircore::token::analyzer::{Analyzer, AnalyzerStats};
 use std::fs::{self, File};
 use std::path::Path;
 use std::collections::{HashMap};

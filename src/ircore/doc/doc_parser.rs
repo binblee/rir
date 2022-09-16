@@ -4,7 +4,7 @@ use crate::ircore::doc::dir::DirIter;
 use crate::ircore::doc::json::{self};
 use crate::ircore::doc::text::{self};
 use crate::ircore::doc::jsonlines::{self};
-use crate::ircore::common::CFG_NAME;
+use crate::ircore::CFG_NAME;
 use crate::ircore::doc::cfg::Cfg;
 use std::collections::HashMap;
 use crate::ircore::doc::dir::FnParseString;
