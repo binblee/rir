@@ -1,5 +1,5 @@
 use crate::ircore::token::dictionary::{Dictionary, DictionaryStats};
-use crate::ircore::token::tokenizer::{Segmentator, Language};
+use crate::ircore::token::sgmt::{Segmentator, Language};
 use crate::ircore::TermId;
 use serde::{Serialize, Deserialize};
 use whatlang::{Detector, Lang};
