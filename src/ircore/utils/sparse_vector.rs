@@ -12,11 +12,12 @@ pub trait SparseVectorOp {
 }
 impl SparseVectorOp for SparseVector {
     fn vec_len(&self) -> f32 {
-        let mut length = 0.0f32;
-        for v in self.values(){
-            length += v*v;
+        // f64 to keep cacluation precision 
+        let mut length = 0.0f64;
+        for v in self.values() {
+            length += (*v as f64)*(*v as f64);
         }
-        length.sqrt()
+        length.sqrt() as f32
     }
     fn vec_set(&mut self, id:TermId, value:f32) -> (TermId, f32){
         self.entry(id).or_insert(value);
