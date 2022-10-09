@@ -43,7 +43,7 @@ impl<'a> Iterator for DirIter<'a> {
         if let Some(path) = self.path_queue.pop_front(){
             let path_string = path.to_string_lossy().to_string();
             if Self::ignore(&path){
-                log::info!("ignore {}", path_string);
+                log::info!("doc parse ignore: {}", path_string);
             }else if path.is_file() {
                 match Self::load_content(&path){
                     Ok(c) => match (self.fn_parsestring)(&path, &c, &self.cfg){

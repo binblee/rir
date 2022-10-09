@@ -43,8 +43,9 @@ pub struct PositionList {
     average_document_length: f32,
     // total number of documents
     document_count: usize,
-    // TF-IDF for all documents
-    tf_idf_matrix: Vec<SparseVector>,
+    // doc-term list, for TF-IDF computing
+    #[serde(skip)]
+    doc_terms: HashMap<DocId, HashSet<TermId>>,
 }
 
 pub struct IndexStats {
@@ -84,12 +85,15 @@ pub trait SchemaDependIndex {
     // docs contain any of the terms
     fn docs_contain_any(&self, term_list: &Vec<TermId>) -> HashSet<DocId>;
     fn is_valid_doc_id(&self, doc_id: DocId) -> bool;
-    // TF-IDF compute
-    fn compute_tf_idf(&mut self) -> Result<(),()>;
-    fn get_doc_tfidf_vector(&self, doc: DocId) -> &SparseVector;
+    // TF-IDF related
+    fn get_doc_tfidf_vector(&self, doc: DocId) -> SparseVector;
     fn get_phrase_tfidf_vector(&self, phrase: &Vec<TermId>) -> Box<SparseVector>;
     // Statistics
     fn stats(&self, dict: &Dictionary) -> IndexStats;
+    // Validate if index is good
+    fn validate(&self) -> bool;
+    // Rebuild index after load from index file
+    fn rebuild(&mut self) -> bool;
 }
 
 impl SchemaDependIndex for PositionList {
@@ -104,7 +108,7 @@ impl SchemaDependIndex for PositionList {
             total_document_length: 0,
             average_document_length: 0.0,
             document_count: 0,
-            tf_idf_matrix: vec![SparseVector::new()],
+            doc_terms: HashMap::new(),
         }
     }
 
@@ -162,7 +166,6 @@ impl SchemaDependIndex for PositionList {
     }
 
     fn add_document(&mut self, term_ids: &Vec<TermId>) -> DocId {
-        //TODO to be replaced by function call
         let doc_id = self.next_doc_id();
         let mut cached_term_id: HashSet<TermId> = HashSet::new();
         // update document length
@@ -200,6 +203,10 @@ impl SchemaDependIndex for PositionList {
                 .and_modify(|count| *count +=1)
                 .or_insert(1);
             }
+            // update doc-term map
+            let doc_terms_entry = self.doc_terms.entry(doc_id)
+                .or_insert_with(HashSet::new);
+            doc_terms_entry.insert(*tid);
         }
         doc_id
     }
@@ -278,34 +285,19 @@ impl SchemaDependIndex for PositionList {
     //   ftd: inverted term document frequency (document_frequency[doc_id])
     //   N: total count of document (term_frequency[term_id, doc_id])
     //   Nt: total count of document that contain term t (document_count)
-    fn compute_tf_idf(&mut self) -> Result<(),()>{
-        assert_eq!(self.document_count, self.document_length.len());
-        for _ in 0..self.document_count {
-            let tf_idf_vector = SparseVector::new();
-            self.tf_idf_matrix.push(tf_idf_vector);
+    fn get_doc_tfidf_vector(&self, doc: DocId) -> SparseVector {
+        assert!(self.is_valid_doc_id(doc));
+        let mut tfidf_vec = SparseVector::new();
+        if let Some(term_set) = self.doc_terms.get(&doc) {
+            for term in term_set {
+                let freq = *self.term_frequency.get(&(*term, doc)).unwrap() as f32;
+                let term_tfidf = (freq.log2() + 1f32 ) * 
+                    (self.document_count as f32 / *self.document_frequency.get(term).unwrap() as f32).log2();
+                tfidf_vec.vec_set(*term, term_tfidf);
+            }
         }
-        let doc_count = self.document_count as f32;
-        for (term_id, doc_id) in self.term_frequency.keys() {
-            assert!(*doc_id <= self.document_count as DocId + 1);
-            let term_freq = *self.term_frequency.get( &(*term_id, *doc_id) ).unwrap() as f32;
-            assert!(self.document_frequency.contains_key(term_id));
-            let doc_freq = *self.document_frequency.get(term_id).unwrap() as f32;
-            let tfidf_first_pass = (term_freq.log2() + 1.0) * (doc_count / doc_freq).log2();
-            self.tf_idf_matrix[*doc_id as usize].vec_set(*term_id, tfidf_first_pass);
-        }
-        for i in 1..self.document_count + 1 {
-            self.tf_idf_matrix[i as usize].vec_normalize();
-        }
-        Ok(())
-    }
-
-    // TF = log(ftd) + 1 if ftd > 0, 0 otherwise
-    // IDF = log(N/Nt)
-    //   ftd: inverted term document frequency (document_frequency[doc_id])
-    //   N: total count of document (term_frequency[term_id, doc_id])
-    //   Nt: total count of document that contain term t (document_count)
-    fn get_doc_tfidf_vector(&self, doc: DocId) -> &SparseVector {
-        &self.tf_idf_matrix[doc as usize]
+        tfidf_vec.vec_normalize();
+        return tfidf_vec;
     }
 
     // compute query string's TF-IDF vector
@@ -325,6 +317,30 @@ impl SchemaDependIndex for PositionList {
         }
         query_tfidf.vec_normalize();
         Box::new(query_tfidf)
+    }
+
+    // Validate if index is good
+    fn validate(&self) -> bool {
+        true
+    }
+
+    // Rebuild index after load from index file
+    fn rebuild(&mut self) -> bool {
+        // reload doc_terms
+        // type PositingList = HashMap<TermId, Vec<Posting>>;
+        // doc_terms: HashMap<DocId, HashSet<TermId>>
+        if self.doc_terms.len() == 0 {
+            for term_id in self.postings_lists.keys() {
+                let postings = self.postings_lists.get(term_id).unwrap();
+                for posting in postings {
+                    let doc_terms_entry = 
+                        self.doc_terms.entry(posting.doc_id)
+                        .or_insert_with(HashSet::new);
+                    doc_terms_entry.insert(*term_id);
+                }
+            }
+        }
+        true
     }
 
 }
@@ -361,6 +377,16 @@ mod tests {
         assert_eq!(idx.total_document_length, 9);
         assert_eq!(idx.average_document_length, 9.0);
         assert_eq!(idx.document_count,1);
+        if let Some(doc_terms_entry1) = idx.doc_terms.get(&(1 as DocId)){
+            assert!(doc_terms_entry1.contains(&(1 as DocId)));
+            assert!(doc_terms_entry1.contains(&(2 as DocId)));
+            assert!(doc_terms_entry1.contains(&(3 as DocId)));
+            assert!(doc_terms_entry1.contains(&(4 as DocId)));
+            assert!(doc_terms_entry1.contains(&(5 as DocId)));
+            assert!(doc_terms_entry1.contains(&(6 as DocId)));
+        }else{
+            assert!(false);
+        }
 
         term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
         doc_id = idx.add_document(&term_ids);
@@ -384,6 +410,27 @@ mod tests {
         assert_eq!(idx.total_document_length, 13);
         assert_eq!(idx.average_document_length, 6.5);
         assert_eq!(idx.document_count,2);
+        if let Some(doc_terms_entry1) = idx.doc_terms.get(&(1 as DocId)){
+            assert!(doc_terms_entry1.contains(&(1 as DocId)));
+            assert!(doc_terms_entry1.contains(&(2 as DocId)));
+            assert!(doc_terms_entry1.contains(&(3 as DocId)));
+            assert!(doc_terms_entry1.contains(&(4 as DocId)));
+            assert!(doc_terms_entry1.contains(&(5 as DocId)));
+            assert!(doc_terms_entry1.contains(&(6 as DocId)));
+            assert!(!doc_terms_entry1.contains(&(7 as DocId)));
+            assert!(!doc_terms_entry1.contains(&(8 as DocId)));
+        }else{
+            assert!(false);
+        }
+        if let Some(doc_terms_entry2) = idx.doc_terms.get(&(2 as DocId)){
+            assert!(doc_terms_entry2.contains(&(5 as DocId)));
+            assert!(doc_terms_entry2.contains(&(6 as DocId)));
+            assert!(doc_terms_entry2.contains(&(7 as DocId)));
+            assert!(doc_terms_entry2.contains(&(8 as DocId)));
+        }else{
+            assert!(false);
+        }
+
 
         // test getter functions
         assert_eq!(idx.get_term_occurences_num(2), 1); //world
@@ -424,6 +471,80 @@ mod tests {
         term_ids = vec![7,100,7];
         let doc_set = idx.docs_contain_any(&term_ids);
         assert_eq!(doc_set, HashSet::from([2]));
+    }
 
+    #[test]
+    fn test_reload_index() {
+        let mut idx = PositionList::new();
+        let mut dict = Dictionary::new();
+        let mut term_ids = dict.generate_ids(&vec!["hello", "world", "hello", "世", "界", "你", "好", "你", "好"]);
+        let mut doc_id = idx.add_document(&term_ids);
+        assert_eq!(doc_id, 1);
+        /*
+        PositionList { 
+            dict: Dictionary { term_ids: {"hello": 1, "世": 3, "好": 6, "界": 4, "world": 2, "你": 5}, next_id: 7 }, 
+            postings_lists: {1: [Posting { doc_id: 1, term_frequency: 2, positions: [1, 3] }], 5: [Posting { doc_id: 1, term_frequency: 2, positions: [6, 8] }], 6: [Posting { doc_id: 1, term_frequency: 2, positions: [7, 9] }], 3: [Posting { doc_id: 1, term_frequency: 1, positions: [4] }], 2: [Posting { doc_id: 1, term_frequency: 1, positions: [2] }], 4: [Posting { doc_id: 1, term_frequency: 1, positions: [5] }]}, 
+            next_doc_id: 2, 
+            document_frequency: {1: 1, 6: 1, 4: 1, 2: 1, 3: 1, 5: 1}, 
+            term_frequency: {(3, 1): 1, (1, 1): 2, (2, 1): 1, (4, 1): 1, (6, 1): 2, (5, 1): 2}, 
+            document_length: {1: 9}, 
+            total_document_length: 9, 
+            average_document_length: 9.0, 
+            document_count: 1 
+        }
+        */
+        term_ids = dict.generate_ids(&vec!["你", "好", "明", "天"]);
+        doc_id = idx.add_document(&term_ids);
+        /*
+        PositionList { 
+            dict: Dictionary { term_ids: {"天": 8, "你": 5, "明": 7, "hello": 1, "世": 3, "好": 6, "界": 4, "world": 2}, next_id: 9 }, 
+            postings_lists: {1: [Posting { doc_id: 1, term_frequency: 2, positions: [1, 3] }], 3: [Posting { doc_id: 1, term_frequency: 1, positions: [4] }], 4: [Posting { doc_id: 1, term_frequency: 1, positions: [5] }], 7: [Posting { doc_id: 2, term_frequency: 1, positions: [3] }], 5: [Posting { doc_id: 1, term_frequency: 2, positions: [6, 8] }, Posting { doc_id: 2, term_frequency: 1, positions: [1] }], 6: [Posting { doc_id: 1, term_frequency: 2, positions: [7, 9] }, Posting { doc_id: 2, term_frequency: 1, positions: [2] }], 8: [Posting { doc_id: 2, term_frequency: 1, positions: [4] }], 2: [Posting { doc_id: 1, term_frequency: 1, positions: [2] }]}, 
+            next_doc_id: 3, 
+            document_frequency: {6: 2, 4: 1, 3: 1, 1: 1, 8: 1, 5: 2, 2: 1, 7: 1}, 
+            term_frequency: {(8, 2): 1, (3, 1): 1, (4, 1): 1, (7, 2): 1, (5, 2): 1, (1, 1): 2, (2, 1): 1, (6, 1): 2, (6, 2): 1, (5, 1): 2}, 
+            document_length: {2: 4, 1: 9}, 
+            total_document_length: 13, 
+            average_document_length: 6.5, 
+            document_count: 2 }    
+        */
+        assert_eq!(doc_id, 2);    
+        assert_eq!(dict.get_term_count(), 8);
+        // clear doc_terms to trigger rebuild
+        idx.doc_terms = HashMap::new();
+        let rebuild_res = idx.rebuild();
+        assert!(rebuild_res);
+        assert_eq!(idx.postings_lists.len(), dict.get_term_count());
+        assert_eq!(idx.document_frequency.len(), dict.get_term_count());
+        assert_eq!(idx.term_frequency.len(), 10);
+        assert_eq!(idx.total_document_length, 13);
+        assert_eq!(idx.average_document_length, 6.5);
+        assert_eq!(idx.document_count,2);
+        if let Some(doc_terms_entry1) = idx.doc_terms.get(&(1 as DocId)){
+            assert!(doc_terms_entry1.contains(&(1 as DocId)));
+            assert!(doc_terms_entry1.contains(&(2 as DocId)));
+            assert!(doc_terms_entry1.contains(&(3 as DocId)));
+            assert!(doc_terms_entry1.contains(&(4 as DocId)));
+            assert!(doc_terms_entry1.contains(&(5 as DocId)));
+            assert!(doc_terms_entry1.contains(&(6 as DocId)));
+            assert!(!doc_terms_entry1.contains(&(7 as DocId)));
+            assert!(!doc_terms_entry1.contains(&(8 as DocId)));
+        }else{
+            assert!(false);
+        }
+        if let Some(doc_terms_entry2) = idx.doc_terms.get(&(2 as DocId)){
+            assert!(doc_terms_entry2.contains(&(5 as DocId)));
+            assert!(doc_terms_entry2.contains(&(6 as DocId)));
+            assert!(doc_terms_entry2.contains(&(7 as DocId)));
+            assert!(doc_terms_entry2.contains(&(8 as DocId)));
+        }else{
+            assert!(false);
+        }
+
+
+        // test getter functions
+        assert_eq!(idx.get_term_occurences_num(2), 1); //world
+        assert_eq!(idx.get_term_occurences_num(1), 2); //hello
+        assert_eq!(idx.get_term_occurences_num(6), 3); //好
+        assert_eq!(idx.get_term_occurences_num(7), 1); //明
     }
 }

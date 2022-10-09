@@ -55,8 +55,6 @@ mod tests {
         doc_id = idx.add_document(&term_ids);
         assert_eq!(doc_id, 5);
         assert!(idx.is_valid_doc_id(0) == false);
-        let tfidf_ok = idx.compute_tf_idf();
-        assert_eq!(tfidf_ok, Ok(()));
         let term_ids = vec![3, 4]; //vec!["quarrel", "sir"];
         let docs = idx.rank_vsm(&term_ids);
         assert_eq!(term_ids.len(), 2);

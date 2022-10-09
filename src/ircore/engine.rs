@@ -41,8 +41,9 @@ impl Engine {
         let mut reader = File::open(path).expect("cannot open idx file.");
         let mut encoded:Vec<u8> = vec![];
         if let Ok(_) = reader.read_to_end(&mut encoded){
-            let decoded: Engine = bincode::deserialize(&encoded[..]).unwrap();
-            return decoded;
+            let mut reloaded_engine: Engine = bincode::deserialize(&encoded[..]).unwrap();
+            reloaded_engine.index.rebuild();
+            return reloaded_engine;
         }
         Self::new()
     }
@@ -56,10 +57,8 @@ impl Engine {
                 }    
             }
         }
-        if let Ok(_) = self.compute_tf_idf() {
-            return Ok(self.doc_count());
-        }
-        Err(())
+        log::debug!("build index completed, number of doc: {}", self.doc_count());
+        return Ok(self.doc_count());
     }
 
     fn add_document(&mut self, doc: &Document) -> Result<(),()> {
@@ -67,13 +66,6 @@ impl Engine {
         let id = self.index.add_document(&term_ids);
         self.doc_meta.insert(id, doc.get_path().to_owned());
         Ok(())
-    }
-
-    pub fn compute_tf_idf(&mut self) -> Result<(),()> {
-        if self.doc_meta.len() == 0 {
-            return Err(());
-        }
-        self.index.compute_tf_idf()
     }
 
     pub fn save_to(&mut self, path_str: &str) -> io::Result<()> {
@@ -84,6 +76,7 @@ impl Engine {
         let encoded: Vec<u8> = bincode::serialize(self).unwrap();
         let mut writer = File::create(path)?;
         writer.write_all(&encoded)?;
+        log::debug!("save to {}", path_str);
         Ok(())
     }
 
