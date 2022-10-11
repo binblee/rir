@@ -1,16 +1,15 @@
 use crate::ircore::index::pl::{SchemaDependIndex, PositionList, IndexStats};
 use crate::ircore::{DocId, RankingAlgorithm};
 use crate::ircore::token::analyzer::{Analyzer, AnalyzerStats};
-use std::fs::{self, File};
 use std::path::Path;
 use std::collections::{HashMap};
 use serde::{Serialize, Deserialize};
-use bincode;
-use std::io::{self, Write, Read};
 use crate::ircore::doc::Document;
 use crate::ircore::query::Query;
 use crate::ircore::ranking::Scorer;
 use crate::ircore::doc::doc_parser::DocParser;
+use crate::ircore::utils::serialize;
+use std::io;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Engine {
@@ -25,6 +24,9 @@ pub struct Stats {
 }
 
 impl Engine {
+    const SERIALIZE_NAME_ANALYZER:&'static str = "idx.al";
+    const SERIALIZE_NAME_DOCMETA: &'static str = "idx.dm";
+
     pub fn new() -> Self {
         Engine{
             index: PositionList::new(),
@@ -38,14 +40,31 @@ impl Engine {
     }
 
     pub fn load_from(path: &str) -> Self {
-        let mut reader = File::open(path).expect("cannot open idx file.");
+        let mut engine = Self::new();
+        engine.index = PositionList::load_from(path);
+        engine.load_analyzer(path);
+        engine.load_docmeta(path);
+        return engine;
+    }
+
+    fn load_analyzer(&mut self, path_str: &str){
+        let path = Path::new(path_str).join(Path::new(Self::SERIALIZE_NAME_ANALYZER));
         let mut encoded:Vec<u8> = vec![];
-        if let Ok(_) = reader.read_to_end(&mut encoded){
-            let mut reloaded_engine: Engine = bincode::deserialize(&encoded[..]).unwrap();
-            reloaded_engine.index.rebuild();
-            return reloaded_engine;
+        if let Ok(reloaded_al) = serialize::read_file(&path, &mut encoded) {
+            self.analyzer = reloaded_al;
+        }else{
+            self.analyzer = Analyzer::new();
         }
-        Self::new()
+    }
+
+    fn load_docmeta(&mut self, path_str: &str){
+        let path = Path::new(path_str).join(Path::new(Self::SERIALIZE_NAME_DOCMETA));
+        let mut encoded:Vec<u8> = vec![];
+        if let Ok(reloaded_dm) = serialize::read_file(&path, &mut encoded) {
+            self.doc_meta = reloaded_dm;
+        }else{
+            self.doc_meta = HashMap::new();
+        }
     }
 
     pub fn build_index_from(&mut self, path: &str) -> Result<usize, ()> {
@@ -69,14 +88,23 @@ impl Engine {
     }
 
     pub fn save_to(&mut self, path_str: &str) -> io::Result<()> {
-        let path = Path::new(path_str);
-        if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir)?;
-        }
-        let encoded: Vec<u8> = bincode::serialize(self).unwrap();
-        let mut writer = File::create(path)?;
-        writer.write_all(&encoded)?;
-        log::debug!("save to {}", path_str);
+        self.index.save_to(path_str)?;
+        self.save_analyzer(path_str)?;
+        self.save_docmeta(path_str)?;
+        Ok(())
+    }
+
+    pub fn save_analyzer(&mut self, path_str: &str) -> io::Result<()> {
+        let path = Path::new(path_str).join(Path::new(Self::SERIALIZE_NAME_ANALYZER));
+        serialize::write_file(&path, &self.analyzer)?;
+        log::debug!("analyzer save to {}", path.to_string_lossy());
+        Ok(())
+    }
+
+    pub fn save_docmeta(&mut self, path_str: &str) -> io::Result<()> {
+        let path = Path::new(path_str).join(Path::new(Self::SERIALIZE_NAME_DOCMETA));
+        serialize::write_file(&path, &self.doc_meta)?;        
+        log::debug!("docmeta save to {}", path.to_string_lossy());
         Ok(())
     }
 

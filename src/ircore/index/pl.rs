@@ -4,6 +4,9 @@ use serde::{Serialize, Deserialize};
 use crate::ircore::utils::sparse_vector::{SparseVector, SparseVectorOp};
 use crate::ircore::token::dictionary::Dictionary;
 use crate::ircore::{DocId, TermId, TermOffset};
+use std::io;
+use std::path::Path;
+use crate::ircore::utils::serialize;
 
 type Positions = Vec<TermOffset>;
 #[derive(Debug, Serialize, Deserialize)]
@@ -48,6 +51,41 @@ pub struct PositionList {
     doc_terms: HashMap<DocId, HashSet<TermId>>,
 }
 
+
+impl PositionList {
+    const SERIALIZE_NAME: &'static str = "idx.pl";
+    pub fn new() -> Self {
+        PositionList{
+            // dict: Dictionary::new(),
+            postings_lists: HashMap::new(),
+            next_doc_id: 0,
+            document_frequency: HashMap::new(),
+            term_frequency: HashMap::new(),
+            document_length: vec![],
+            total_document_length: 0,
+            average_document_length: 0.0,
+            document_count: 0,
+            doc_terms: HashMap::new()
+        }
+    }
+    pub fn save_to(&self, path_str: &str) -> io::Result<()>{
+        let path = &Path::new(path_str).join(Path::new(Self::SERIALIZE_NAME));
+        serialize::write_file(&path, self)?;
+        log::debug!("index save to {}", path.to_string_lossy());
+        Ok(())
+    }
+    pub fn load_from(path_prefix: &str) -> Self{
+        let path = Path::new(path_prefix).join(Path::new(Self::SERIALIZE_NAME));
+        let mut encoded:Vec<u8> = vec![];
+        if let Ok(mut reloaded_pl) = serialize::read_file::<PositionList>(&path, &mut encoded) {
+            reloaded_pl.rebuild();
+            return reloaded_pl;
+        }else{
+            return Self::new();
+        }
+    }
+}
+
 pub struct IndexStats {
     // total document length in tokens
     pub total_document_length: u64,
@@ -59,7 +97,6 @@ pub struct IndexStats {
 }
 
 pub trait SchemaDependIndex {
-    fn new() -> Self;
     fn add_document(&mut self, term_ids: &Vec<TermId>) -> DocId;
     fn next_doc_id(&mut self) -> DocId;
     // getters
@@ -97,21 +134,6 @@ pub trait SchemaDependIndex {
 }
 
 impl SchemaDependIndex for PositionList {
-    fn new() -> Self {
-        PositionList{
-            // dict: Dictionary::new(),
-            postings_lists: HashMap::new(),
-            next_doc_id: 0,
-            document_frequency: HashMap::new(),
-            term_frequency: HashMap::new(),
-            document_length: vec![],
-            total_document_length: 0,
-            average_document_length: 0.0,
-            document_count: 0,
-            doc_terms: HashMap::new(),
-        }
-    }
-
     fn get_term_occurences_num(&self, term: TermId) -> u32{
         if let Some(term_postings_list) = self.postings_lists.get(&term){
             let occ_num = term_postings_list.into_iter().fold(0u32, |sum, posting| sum + posting.term_frequency);
