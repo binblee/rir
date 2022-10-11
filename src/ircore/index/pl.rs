@@ -37,6 +37,7 @@ pub struct PositionList {
     // the number of documents in the collection containing the term (id)
     document_frequency: HashMap<TermId, u32>,
     // the number of times term(termid) appears in document(doc_id)
+    #[serde(skip)]
     term_frequency: HashMap<(TermId, DocId), u32>,
     // number of tokens of a document measured in tokens
     // value doc_id - 1 is used as vector index
@@ -84,6 +85,36 @@ impl PositionList {
             return Self::new();
         }
     }
+
+    // Rebuild index after load from index file
+    fn rebuild(&mut self) -> bool {
+        let rebuild_doc_terms = self.doc_terms.len() == 0 ;
+        let rebuild_term_frequency = self.term_frequency.len() == 0;
+        if rebuild_doc_terms || rebuild_term_frequency {
+            for term_id in self.postings_lists.keys() {
+                let postings = self.postings_lists.get(term_id).unwrap();
+                for posting in postings {
+                    // rebuild doc_terms
+                    if rebuild_doc_terms {
+                        let doc_terms_entry = 
+                            self.doc_terms.entry(posting.doc_id)
+                            .or_insert_with(HashSet::new);
+                        doc_terms_entry.insert(*term_id);
+                    }
+                    // reload term frequency
+                    if rebuild_term_frequency {
+                        self.term_frequency.entry((*term_id, posting.doc_id))
+                        .and_modify(|count| *count += posting.term_frequency)
+                        .or_insert(posting.term_frequency);    
+                    }
+                }
+            }
+        }
+    
+        true
+    }
+    
+
 }
 
 pub struct IndexStats {
@@ -129,8 +160,6 @@ pub trait SchemaDependIndex {
     fn stats(&self, dict: &Dictionary) -> IndexStats;
     // Validate if index is good
     fn validate(&self) -> bool;
-    // Rebuild index after load from index file
-    fn rebuild(&mut self) -> bool;
 }
 
 impl SchemaDependIndex for PositionList {
@@ -343,25 +372,6 @@ impl SchemaDependIndex for PositionList {
 
     // Validate if index is good
     fn validate(&self) -> bool {
-        true
-    }
-
-    // Rebuild index after load from index file
-    fn rebuild(&mut self) -> bool {
-        // reload doc_terms
-        // type PositingList = HashMap<TermId, Vec<Posting>>;
-        // doc_terms: HashMap<DocId, HashSet<TermId>>
-        if self.doc_terms.len() == 0 {
-            for term_id in self.postings_lists.keys() {
-                let postings = self.postings_lists.get(term_id).unwrap();
-                for posting in postings {
-                    let doc_terms_entry = 
-                        self.doc_terms.entry(posting.doc_id)
-                        .or_insert_with(HashSet::new);
-                    doc_terms_entry.insert(*term_id);
-                }
-            }
-        }
         true
     }
 
