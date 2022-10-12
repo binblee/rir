@@ -66,7 +66,7 @@ impl PositionList {
             total_document_length: 0,
             average_document_length: 0.0,
             document_count: 0,
-            doc_terms: HashMap::new()
+            doc_terms: HashMap::new(),
         }
     }
     pub fn save_to(&self, path_str: &str) -> io::Result<()>{
