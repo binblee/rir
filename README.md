@@ -1,1 +1,1 @@
-# rir
+# rir - Simple Information Retrieval Tool
