@@ -1,5 +1,5 @@
 pub mod ircore;
-use ircore::engine::Engine;
+use ircore::index::engine::Engine;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::io::{self, BufRead};
 use ircore::RankingAlgorithm;

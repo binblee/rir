@@ -2,7 +2,7 @@ use crate::ircore::index::pl::{SchemaDependIndex, PositionList, IndexStats};
 use crate::ircore::{DocId, RankingAlgorithm};
 use crate::ircore::token::analyzer::{Analyzer, AnalyzerStats};
 use std::path::Path;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use crate::ircore::doc::Document;
 use crate::ircore::query::Query;
